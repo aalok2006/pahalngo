@@ -1,5 +1,8 @@
 <?php
+require __DIR__ . '/../vendor/autoload.php'; 
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 // Example usage
 $mail = new PHPMailer(true);
 // ========================================================================
@@ -7,6 +10,9 @@ $mail = new PHPMailer(true);
 // Enhanced Version: v2.0
 // Features: PHPMailer, CSRF Protection, Honeypot, Logging, Expanded Content
 // ========================================================================
+if (!file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    die('Autoload file missing!');
+}
 
 // Start session for CSRF token
 if (session_status() == PHP_SESSION_NONE) {
@@ -15,14 +21,7 @@ if (session_status() == PHP_SESSION_NONE) {
 
 // --- Dependency Check ---
 // Ensure PHPMailer is loaded (via Composer autoload)
-if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
-    die("Error: PHPMailer library not found. Please install using Composer: composer require phpmailer/phpmailer");
-}
-require __DIR__ . '/vendor/autoload.php';
 
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 $mail = new PHPMailer(true);
 
