@@ -784,19 +784,6 @@ $neutral_medium_color = '#6B7280';
                      </a>
                      <p class="text-xs mt-1 text-neutral">Karo Sambhav (Primary Partner)</p>
                 </div>
-                <!-- Add other partner logos if applicable -->
-                 <div class="partner-logo animate-fade-in animate-delay-100">
-                     <a href="#" title="Example Partner 2">
-                        <img src="https://via.placeholder.com/150x60?text=Partner+Logo+2" alt="Partner 2 Logo">
-                     </a>
-                    <p class="text-xs mt-1 text-neutral">Another Recycler (Example)</p>
-                </div>
-                <div class="partner-logo animate-fade-in animate-delay-200">
-                    <a href="https://cpcb.nic.in/" target="_blank" rel="noopener noreferrer" title="Central Pollution Control Board - Compliance Info">
-                        <img src="https://via.placeholder.com/150x60/000080/FFFFFF?text=CPCB+India" alt="CPCB Logo Example">
-                    </a>
-                     <p class="text-xs mt-1 text-neutral">Compliance (CPCB Guidelines)</p>
-                </div>
             </div>
          </div>
     </section>
@@ -810,11 +797,11 @@ $neutral_medium_color = '#6B7280';
             <div class="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-8 mb-10 text-lg">
                <div class="flex items-center">
                    <i class="fas fa-phone-alt text-primary text-2xl mr-3"></i>
-                   <a href="tel:+919855614230" class="text-neutral-dark hover:text-primary font-semibold">+91 98556-14230</a> <span class="text-sm ml-1 text-neutral">(Mention E-Waste)</span>
+                   <a href="tel:+916239366376" class="text-neutral-dark hover:text-primary font-semibold">+91 6239366376</a> <span class="text-sm ml-1 text-neutral">(E-Waste Project Manager)</span>
                </div>
                 <div class="flex items-center">
                    <i class="fas fa-envelope text-primary text-2xl mr-3"></i>
-                   <a href="mailto:ewaste@your-pahal-domain.com?subject=E-Waste Inquiry" class="text-neutral-dark hover:text-primary font-semibold break-all">ewaste@your-pahal-domain.com</a>
+                   <a href="mailto:sahilsinghss@gmail.com?subject=E-Waste Inquiry" class="text-neutral-dark hover:text-primary font-semibold break-all">sahilsinghss@gmail.com</a>
                 </div>
             </div>
 
