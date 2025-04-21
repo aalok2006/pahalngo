@@ -236,7 +236,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     <link rel="manifest" href="/site.webmanifest">
 
     <!-- Tailwind CSS CDN with Forms Plugin -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.tailwindcss.com></script>
 
     <!-- Google Fonts (Poppins & Fira Code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
