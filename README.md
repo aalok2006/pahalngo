@@ -1,6 +1,6 @@
 # PAHAL NGO
 
-## 🚀 Live Demo
+## 🚀 Go Live
 
 Click the button below to visit the deployed website.
 
