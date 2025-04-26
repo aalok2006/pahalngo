@@ -236,7 +236,19 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     <link rel="manifest" href="/site.webmanifest">
 
     <!-- Tailwind CSS CDN with Forms Plugin -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    
+    <!-- Fix for Tailwind CSS processing -->
+    <script>
+        // This ensures Tailwind processes the styles correctly
+        if (typeof tailwind !== 'undefined') {
+            console.log("Tailwind CSS loaded successfully");
+        } else {
+            console.error("Tailwind CSS failed to load");
+            // Fallback to load Tailwind again if needed
+            document.write('<script src="https://cdn.tailwindcss.com?plugins=forms"><\/script>');
+        }
+    </script>
 
     <!-- Google Fonts (Poppins & Fira Code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -344,7 +356,8 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
 
         @layer base {
             html { @apply scroll-smooth antialiased; }
-            body { @apply bg-theme-bg text-theme-text font-sans transition-colors duration-300 overflow-x-hidden; } /* Prevent horizontal scroll */
+            /* Add body padding top for fixed header AFTER header height is calculated in JS or set fixed */
+            body { @apply bg-theme-bg text-theme-text font-sans transition-colors duration-300 overflow-x-hidden pt-[70px]; } /* Added pt-[70px] here */
             h1, h2, h3, h4, h5, h6 { @apply font-heading font-semibold text-theme-text-heading tracking-tight leading-tight; }
             h1 { @apply text-4xl md:text-5xl lg:text-6xl font-extrabold; } /* Bolder H1 */
             h2 { @apply text-3xl md:text-4xl font-bold mb-4; }
@@ -398,17 +411,16 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
             .form-label { @apply block mb-1.5 text-sm font-medium text-theme-text-muted; }
             .form-label.required::after { content: '*'; @apply text-theme-accent ml-0.5; }
             .form-input { @apply block w-full px-4 py-2.5 rounded-lg border bg-theme-bg dark:bg-theme-surface/60 border-theme-border placeholder-theme-text-muted/70 text-theme-text shadow-sm transition duration-200 ease-in-out focus:border-theme-primary focus:ring-2 focus:ring-theme-primary/50 focus:outline-none disabled:opacity-60; }
-            /* Autofill styles (keep from previous) */
+            /* Autofill styles */
             input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, textarea:-webkit-autofill:hover, textarea:-webkit-autofill:focus, select:-webkit-autofill, select:-webkit-autofill:hover, select:-webkit-autofill:focus { -webkit-text-fill-color: var(--color-text); -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset; transition: background-color 5000s ease-in-out 0s; }
             html.dark input:-webkit-autofill, html.dark input:-webkit-autofill:hover, html.dark input:-webkit-autofill:focus, html.dark textarea:-webkit-autofill, html.dark textarea:-webkit-autofill:hover, html.dark textarea:-webkit-autofill:focus, html.dark select:-webkit-autofill, html.dark select:-webkit-autofill:hover, html.dark select:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset; }
-            select.form-input { /* Keep custom arrow */ }
+            select.form-input { /* Keep custom arrow if any, or rely on @tailwindcss/forms */ }
             textarea.form-input { @apply min-h-[120px] resize-vertical; }
             .form-input-error { @apply !border-theme-accent ring-2 ring-theme-accent/50 focus:!border-theme-accent focus:!ring-theme-accent/50; }
             .form-error-message { @apply text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1; } /* Error message style */
             .form-section { @apply card border-l-4 border-theme-primary mt-8; } /* Default border */
              #volunteer-section .form-section { @apply !border-theme-accent; } /* Volunteer form border */
              #contact .form-section { @apply !border-theme-secondary; } /* Contact form border */
-
 
              /* Spinner */
              .spinner { @apply inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-current; } /* Slightly larger */
@@ -424,11 +436,129 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
              footer address i { @apply text-theme-primary mt-1 w-4 text-center flex-shrink-0; }
              .footer-social-icon { @apply text-xl transition duration-300 text-gray-400 hover:scale-110; } /* Social icons */
              .footer-bottom { @apply border-t border-gray-700/50 pt-8 mt-12 text-center text-sm text-gray-500; }
+
+            /* --- MOVED SECTION STYLES START --- */
+             #main-header { @apply fixed top-0 left-0 w-full bg-theme-surface/85 dark:bg-theme-bg/80 backdrop-blur-xl z-50 shadow-sm transition-all duration-300 border-b border-theme-border/30; min-height: 70px; }
+             #main-header.scrolled { @apply shadow-lg bg-theme-surface/95 dark:bg-theme-bg/90 border-theme-border/50; }
+             /* body padding moved to @layer base */
+
+              /* Navigation */
+              #navbar ul li a { @apply text-theme-text-muted hover:text-theme-primary dark:hover:text-theme-primary font-medium py-2 relative transition duration-300 ease-in-out text-sm lg:text-base block lg:inline-block lg:py-0 px-3 lg:px-2 xl:px-3; } /* Adjusted padding */
+              #navbar ul li a::after { content: ''; @apply absolute bottom-[-5px] left-0 w-0 h-[3px] bg-gradient-to-r from-theme-secondary to-theme-primary opacity-0 transition-all duration-300 ease-out rounded-full group-hover:opacity-100 group-hover:w-full; } /* Animated underline */
+              #navbar ul li a.active { @apply text-theme-primary font-semibold; }
+              #navbar ul li a.active::after { @apply w-full opacity-100; }
+
+              /* Mobile menu toggle */
+              .menu-toggle { @apply text-theme-text-muted hover:text-theme-primary transition-colors duration-200; }
+              .menu-toggle span { @apply block w-6 h-0.5 bg-current rounded-full transition-all duration-300 ease-in-out; }
+              .menu-toggle span:nth-child(1) { @apply mb-1.5; }
+              .menu-toggle span:nth-child(3) { @apply mt-1.5; }
+              .menu-toggle.open span:nth-child(1) { @apply transform rotate-45 translate-y-[6px]; } /* Adjusted translate */
+              .menu-toggle.open span:nth-child(2) { @apply opacity-0; }
+              .menu-toggle.open span:nth-child(3) { @apply transform -rotate-45 -translate-y-[6px]; } /* Adjusted translate */
+
+
+              /* Mobile Navbar container */
+              #navbar { @apply w-full lg:w-auto lg:flex hidden max-h-0 lg:max-h-screen overflow-hidden lg:overflow-visible absolute lg:relative top-[70px] lg:top-auto left-0 bg-theme-surface dark:bg-theme-surface lg:bg-transparent shadow-xl lg:shadow-none lg:border-none border-t border-theme-border transition-all duration-500 ease-in-out; }
+              #navbar.open { @apply block; max-height: calc(100vh - 70px); /* JS could also set this */ } /* Ensure it opens */
+
+             /* Hero Section */
+             #hero {
+                 /* Use the animated gradient utility */
+                 @apply animated-gradient-primary text-white min-h-[calc(100vh-70px)] flex items-center py-20 relative overflow-hidden;
+             }
+             #hero::before { /* Subtle overlay */
+                 content: ''; @apply absolute inset-0 bg-black/20;
+             }
+             .hero-text h1 { @apply !text-white mb-6 drop-shadow-xl leading-tight font-extrabold; }
+             .hero-logo img { @apply drop-shadow-2xl animate-glow-pulse bg-white/10; animation-duration: 4s; } /* Slower glow pulse */
+             .hero-scroll-indicator { @apply absolute bottom-8 left-1/2 -translate-x-1/2 z-10 hidden md:block; }
+             .hero-scroll-indicator a { @apply text-white/60 hover:text-white text-4xl animate-bounce-subtle; }
+
+             /* Focus Areas */
+             .focus-item { @apply card card-hover border-t-4 border-theme-secondary bg-theme-surface p-6 md:p-8 text-center flex flex-col items-center; } /* Changed border color */
+             .focus-item .icon { @apply text-5xl text-theme-secondary mb-6 inline-block transition-transform duration-300 group-hover:scale-110 group-hover:animate-icon-bounce; } /* Bounce icon */
+             .focus-item h3 { @apply text-xl text-theme-text-heading mb-3 transition-colors duration-300 group-hover:text-theme-secondary; }
+             .focus-item p { @apply text-sm text-theme-text-muted leading-relaxed flex-grow mb-4 text-center; }
+             .focus-item .read-more-link { @apply relative block text-sm font-semibold text-theme-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:underline pt-2; }
+             .focus-item .read-more-link::after { content: '\f061'; font-family: 'Font Awesome 6 Free'; @apply font-black text-xs ml-1.5 opacity-0 group-hover:opacity-100 translate-x-[-5px] group-hover:translate-x-0 transition-all duration-300 inline-block;} /* Animated arrow */
+
+             /* Objectives Section */
+             #objectives { @apply bg-gradient-to-b from-theme-bg to-theme-surface-alt dark:from-theme-bg dark:to-theme-surface/30; } /* Subtle gradient background */
+             .objective-item { @apply bg-theme-surface/80 dark:bg-theme-surface/90 backdrop-blur-sm p-5 rounded-lg shadow-sm transition duration-300 ease-in-out hover:shadow-md hover:border-theme-secondary border-l-4 border-transparent flex items-start space-x-4; }
+             .objective-item i { @apply text-theme-secondary group-hover:text-theme-accent transition-all duration-300 flex-shrink-0 w-6 text-center text-xl group-hover:rotate-[15deg]; } /* Rotate icon */
+
+             /* News Section */
+             #news-section { @apply bg-theme-surface-alt dark:bg-theme-surface/50; }
+             #news-section .news-card { @apply card card-hover flex flex-col; }
+             #news-section .news-card img { @apply rounded-t-xl; } /* Ensure img corners match card */
+             #news-section .news-card .news-content { @apply p-5 flex flex-col flex-grow; }
+             #news-section .news-card .date { @apply block text-xs text-theme-text-muted mb-2; }
+             #news-section .news-card h4 { @apply text-lg font-semibold text-theme-text-heading mb-2 leading-snug flex-grow; }
+             #news-section .news-card h4 a { @apply text-inherit hover:text-inherit; } /* Use inherit for link color */
+             #news-section .news-card p { @apply text-sm text-theme-text-muted mb-4 leading-relaxed; }
+             #news-section .news-card .read-more-action { @apply mt-auto pt-3 border-t border-theme-border-light; }
+
+             /* Volunteer/Donate Sections */
+              #volunteer-section { @apply animated-gradient-accent text-white relative; } /* Use animated gradient */
+              #volunteer-section::before { content:''; @apply absolute inset-0 bg-black/25;} /* Darken overlay */
+              #donate-section { @apply animated-gradient-primary text-white relative; }
+              #donate-section::before { content:''; @apply absolute inset-0 bg-black/25;}
+              #volunteer-section .section-title, #donate-section .section-title { @apply !text-white relative z-10; }
+              #volunteer-section .section-title::after, #donate-section .section-title::after { @apply !bg-white/70 relative z-10; }
+              #volunteer-section form, #donate-section > div > div { @apply relative z-10; } /* Ensure form/content is above overlay */
+              #volunteer-section .panel { @apply !bg-black/30 dark:!bg-black/40 !border-white/20; } /* Adjust panel for gradient bg */
+              #volunteer-section .form-label { @apply !text-gray-100; }
+              /* Define inverted input style */
+              .form-input-inverted { @apply !bg-white/10 !border-gray-400/40 !text-white placeholder:!text-gray-300/60 focus:!bg-white/20 focus:!border-white focus:!ring-white/50; }
+              /* Apply inverted style where needed */
+              #volunteer-section .form-input { @apply form-input-inverted; }
+               /* Override error state for inverted */
+              #volunteer-section .form-input-error { @apply !border-red-400 !ring-red-400/60 focus:!border-red-400 focus:!ring-red-400/60; }
+
+
+             /* Gallery */
+             .gallery-item img { @apply transition-all duration-400 ease-in-out group-hover:scale-105 group-hover:brightness-110 filter group-hover:contrast-110; } /* Add contrast */
+
+             /* Associates */
+             #associates { @apply bg-theme-surface-alt dark:bg-theme-surface/50; }
+             .associate-logo img { @apply filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100; }
+             .associate-logo p { @apply text-xs font-medium text-theme-text-muted group-hover:text-theme-primary transition-colors; }
+
+             /* Contact Section */
+             #contact { @apply bg-gradient-to-b from-theme-surface-alt to-theme-bg dark:from-theme-surface/50 dark:to-theme-bg;}
+             #contact .panel { @apply !bg-theme-surface dark:!bg-theme-surface !border-theme-border/50; } /* Solid surface for form */
+             .contact-info-item { @apply flex items-start gap-4; }
+             .contact-info-item i { @apply text-theme-primary text-lg mt-1 w-5 text-center flex-shrink-0; }
+             #contact .registration-info { @apply bg-theme-surface dark:bg-theme-surface/80 p-4 rounded-md border border-theme-border text-xs text-theme-text-muted mt-8 shadow-inner;}
+
+             /* Footer */
+             footer { @apply bg-slate-900 dark:bg-black text-gray-400 pt-16 pb-8 mt-0 border-t-4 border-theme-primary dark:border-theme-primary; }
+             footer .footer-text { @apply text-sm text-gray-400 mb-2 leading-relaxed; }
+
+             /* Back to Top */
+             #back-to-top { @apply fixed bottom-6 right-6 z-[60] p-3 rounded-full bg-theme-primary text-white shadow-lg hover:bg-theme-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-theme-primary opacity-0 invisible transition-all duration-300 hover:scale-110 active:scale-95; }
+             #back-to-top.visible { @apply opacity-100 visible; }
+
+             /* Modal Styles */
+             .modal-container { @apply fixed inset-0 bg-black/70 dark:bg-black/80 z-[100] hidden items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300 ease-out; } /* Added transition */
+             .modal-container.flex { @apply flex; opacity: 1; } /* Use flex to show */
+             .modal-container.hidden { @apply hidden; opacity: 0; } /* Use hidden to hide */
+
+             .modal-box { @apply bg-theme-surface rounded-lg shadow-xl p-6 md:p-8 w-full max-w-lg text-left relative transform transition-all duration-300 scale-95 opacity-0; } /* Wider modal */
+             .modal-container.flex .modal-box { @apply scale-100 opacity-100; } /* Animate in */
+
+             #bank-details-modal h3 { @apply !text-theme-primary !mt-0 mb-5 border-b border-theme-border pb-3; } /* Title style */
+             .modal-content-box { @apply bg-theme-surface-alt dark:bg-theme-surface/50 p-4 rounded-md border border-theme-border/50 space-y-2 my-5 text-sm; }
+             .modal-content-box p strong { @apply font-medium text-theme-text-heading; }
+             .modal-footer-note { @apply text-xs text-theme-text-muted text-center mt-6 italic; }
+             .close-button { @apply absolute top-4 right-4 text-theme-text-muted hover:text-theme-accent p-1 rounded-full transition-colors focus-visible:ring-theme-accent; }
+            /* --- MOVED SECTION STYLES END --- */
         }
 
         @layer utilities {
             /* Animation Delays */
-             .delay-100 { animation-delay: 0.1s; } .delay-200 { animation-delay: 0.2s; } .delay-300 { animation-delay: 0.3s; } .delay-400 { animation-delay: 0.4s; } .delay-500 { animation-delay: 0.5s; } .delay-700 { animation-delay: 0.7s; }
+             .delay-50 { animation-delay: 0.05s; } .delay-100 { animation-delay: 0.1s; } .delay-150 { animation-delay: 0.15s; } .delay-200 { animation-delay: 0.2s; } .delay-300 { animation-delay: 0.3s; } .delay-400 { animation-delay: 0.4s; } .delay-500 { animation-delay: 0.5s; } .delay-700 { animation-delay: 0.7s; }
 
              /* Animation on Scroll Classes */
              .animate-on-scroll { opacity: 0; transition: opacity 0.8s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); } /* Smoother ease */
@@ -443,102 +573,15 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                 background-size: 400% 400%;
                 animation: gradientBg 18s ease infinite;
              }
-             .animated-gradient-accent {
+             .animated-gradient-accent { /* Adjusted name */
                  background: linear-gradient(-45deg, var(--color-accent), var(--color-warning), var(--color-secondary), var(--color-accent));
                  background-size: 400% 400%;
                  animation: gradientBg 20s ease infinite;
              }
+             /* Corrected: volunteer section uses accent gradient */
+             .animated-gradient-secondary { @apply animated-gradient-accent; }
+
         }
-
-        /* Specific Section Styles */
-         #main-header { @apply fixed top-0 left-0 w-full bg-theme-surface/85 dark:bg-theme-bg/80 backdrop-blur-xl z-50 shadow-sm transition-all duration-300 border-b border-theme-border/30; min-height: 70px; }
-         #main-header.scrolled { @apply shadow-lg bg-theme-surface/95 dark:bg-theme-bg/90 border-theme-border/50; }
-         body { @apply pt-[70px]; }
-
-          /* Navigation */
-          #navbar ul li a { @apply text-theme-text-muted hover:text-theme-primary dark:hover:text-theme-primary font-medium py-2 relative transition duration-300 ease-in-out text-sm lg:text-base block lg:inline-block lg:py-0 px-3 lg:px-2 xl:px-3; } /* Adjusted padding */
-          #navbar ul li a::after { content: ''; @apply absolute bottom-[-5px] left-0 w-0 h-[3px] bg-gradient-to-r from-theme-secondary to-theme-primary opacity-0 transition-all duration-300 ease-out rounded-full group-hover:opacity-100 group-hover:w-full; } /* Animated underline */
-          #navbar ul li a.active { @apply text-theme-primary font-semibold; }
-          #navbar ul li a.active::after { @apply w-full opacity-100; }
-
-          /* Mobile menu toggle */
-          /* ... (Keep existing styles) ... */
-
-          /* Mobile Navbar container */
-          #navbar { @apply navbar-container w-full lg:w-auto lg:flex hidden max-h-0 lg:max-h-screen overflow-hidden lg:overflow-visible absolute lg:relative top-[70px] lg:top-auto left-0 bg-theme-surface dark:bg-theme-surface lg:bg-transparent shadow-xl lg:shadow-none lg:border-none border-t border-theme-border transition-all duration-500 ease-in-out; }
-          #navbar.open { @apply block; } /* JS will toggle max-height */
-
-         /* Hero Section */
-         #hero {
-             /* Use the animated gradient utility */
-             @apply animated-gradient-primary text-white min-h-[calc(100vh-70px)] flex items-center py-20 relative overflow-hidden;
-         }
-         #hero::before { /* Subtle overlay */
-             content: ''; @apply absolute inset-0 bg-black/20;
-         }
-         .hero-text h1 { @apply !text-white mb-6 drop-shadow-xl leading-tight font-extrabold; }
-         .hero-logo img { @apply drop-shadow-2xl animate-glow-pulse bg-white/10; animation-duration: 4s; } /* Slower glow pulse */
-         .hero-scroll-indicator { @apply absolute bottom-8 left-1/2 -translate-x-1/2 z-10 hidden md:block; }
-         .hero-scroll-indicator a { @apply text-white/60 hover:text-white text-4xl animate-bounce-subtle; }
-
-         /* Focus Areas */
-         .focus-item { @apply card card-hover border-t-4 border-theme-secondary bg-theme-surface p-6 md:p-8 text-center flex flex-col items-center; } /* Changed border color */
-         .focus-item .icon { @apply text-5xl text-theme-secondary mb-6 inline-block transition-transform duration-300 group-hover:scale-110 group-hover:animate-icon-bounce; } /* Bounce icon */
-         .focus-item h3 { @apply text-xl text-theme-text-heading mb-3 transition-colors duration-300 group-hover:text-theme-secondary; }
-         .focus-item p { @apply text-sm text-theme-text-muted leading-relaxed flex-grow mb-4 text-center; }
-         .focus-item .read-more-link { @apply relative block text-sm font-semibold text-theme-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:underline pt-2; }
-         .focus-item .read-more-link::after { content: '\f061'; font-family: 'Font Awesome 6 Free'; @apply font-black text-xs ml-1.5 opacity-0 group-hover:opacity-100 translate-x-[-5px] group-hover:translate-x-0 transition-all duration-300 inline-block;} /* Animated arrow */
-
-         /* Objectives Section */
-         #objectives { @apply bg-gradient-to-b from-theme-bg to-theme-surface-alt dark:from-theme-bg dark:to-theme-surface/30; } /* Subtle gradient background */
-         .objective-item { @apply bg-theme-surface/80 dark:bg-theme-surface/90 backdrop-blur-sm p-5 rounded-lg shadow-sm transition duration-300 ease-in-out hover:shadow-md hover:border-theme-secondary border-l-4 border-transparent flex items-start space-x-4; }
-         .objective-item i { @apply text-theme-secondary group-hover:text-theme-accent transition-all duration-300 flex-shrink-0 w-6 text-center text-xl group-hover:rotate-[15deg]; } /* Rotate icon */
-
-         /* News Section */
-         #news-section { @apply bg-theme-surface-alt dark:bg-theme-surface/50; }
-         #news-section .news-card { @apply card card-hover flex flex-col; }
-         #news-section .news-card .news-content h4 a { @apply group-hover:!text-theme-secondary; } /* Change title color on hover */
-
-         /* Volunteer/Donate Sections */
-          #volunteer-section { @apply animated-gradient-accent text-white relative; } /* Use animated gradient */
-          #volunteer-section::before { content:''; @apply absolute inset-0 bg-black/25;} /* Darken overlay */
-          #donate-section { @apply animated-gradient-primary text-white relative; }
-          #donate-section::before { content:''; @apply absolute inset-0 bg-black/25;}
-          #volunteer-section .section-title, #donate-section .section-title { @apply !text-white relative z-10; }
-          #volunteer-section .section-title::after, #donate-section .section-title::after { @apply !bg-white/70 relative z-10; }
-          #volunteer-section form, #donate-section > div > div { @apply relative z-10; } /* Ensure form/content is above overlay */
-          #volunteer-section .panel { @apply !bg-black/30 dark:!bg-black/40 !border-white/20; } /* Adjust panel for gradient bg */
-          #volunteer-section .form-label { @apply !text-gray-100; }
-          #volunteer-section .form-input { @apply !bg-white/10 !border-gray-400/40 !text-white placeholder:!text-gray-300/60 focus:!bg-white/20 focus:!border-white; }
-
-         /* Gallery */
-         .gallery-item img { @apply transition-all duration-400 ease-in-out group-hover:scale-105 group-hover:brightness-110 filter group-hover:contrast-110; } /* Add contrast */
-
-         /* Associates */
-         #associates { @apply bg-theme-surface-alt dark:bg-theme-surface/50; }
-         .associate-logo img { @apply filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100; }
-         .associate-logo p { @apply text-xs font-medium text-theme-text-muted group-hover:text-theme-primary transition-colors; }
-
-         /* Contact Section */
-         #contact { @apply bg-gradient-to-b from-theme-surface-alt to-theme-bg dark:from-theme-surface/50 dark:to-theme-bg;}
-         #contact .panel { @apply !bg-theme-surface dark:!bg-theme-surface !border-theme-border/50; } /* Solid surface for form */
-         #contact .contact-info-item i { @apply text-theme-primary; }
-         #contact .registration-info { @apply bg-theme-surface dark:bg-theme-surface/80 p-4 rounded-md border border-theme-border text-xs text-theme-text-muted mt-8 shadow-inner;}
-
-         /* Footer */
-         footer { @apply bg-slate-900 dark:bg-black text-gray-400 pt-16 pb-8 mt-0 border-t-4 border-theme-primary dark:border-theme-primary; }
-
-         /* Back to Top */
-         #back-to-top { @apply fixed bottom-6 right-6 z-[60] p-3 rounded-full bg-theme-primary text-white shadow-lg hover:bg-theme-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-theme-primary opacity-0 invisible transition-all duration-300 hover:scale-110 active:scale-95; }
-         #back-to-top.visible { @apply opacity-100 visible; }
-
-         /* Modal Styles */
-         #bank-details-modal { @apply fixed inset-0 bg-black/70 dark:bg-black/80 z-[100] hidden items-center justify-center p-4 backdrop-blur-md; } /* Stronger blur */
-         #bank-details-modal > div { @apply bg-theme-surface rounded-lg shadow-xl p-6 md:p-8 w-full max-w-lg text-left relative transform transition-all duration-300 scale-95 opacity-0; } /* Wider modal */
-         #bank-details-modal.flex > div { @apply scale-100 opacity-100; }
-         #bank-details-modal h3 { @apply !text-theme-primary !mt-0 mb-5 border-b border-theme-border pb-3; } /* Title style */
-         #bank-details-modal .close-button { @apply absolute top-4 right-4 text-theme-text-muted hover:text-theme-accent p-1 rounded-full transition-colors focus-visible:ring-theme-accent; }
-
     </style>
     <!-- Schema.org JSON-LD -->
     <script type="application/ld+json">
