@@ -508,6 +508,7 @@ $bank_details = [
                         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
                          // Add specific animations needed from v3.5 if not covered by E-Waste ones
                          'spin-slow': 'spin 2s linear infinite', // Standard Tailwind spin
+                         'bounce-subtle': 'bounce 1s infinite', // Standard Tailwind bounce
                     },
                     keyframes: {
                         // Use E-Waste keyframes (simplified list)
@@ -652,7 +653,7 @@ $bank_details = [
 
         @layer utilities {
             /* Animation Delays - Matching E-Waste */
-            .animate-delay-50 { animation-delay: 0.05s; } .animate-delay-100 { animation-delay: 0.1s; } .animate-delay-150 { animation-delay: 0.15s; } .animate-delay-200 { animation-delay: 0.2s; } .animate-delay-300 { animation-delay: 0.3s; } .animate-delay-400 { animation-delay: 0.4s; } .animate-delay-500 { animation-delay: 0.5s; } .animate-delay-700 { animation-delay: 0.7s; }
+            .animate-delay-50 { animation-delay: 0.05s; } .animate-delay-100 { animation-delay: 0.1s; } .animate-delay-150 { animation-delay: 0.15s; } .animate-delay-200 { animation-delay: 0.2s; } .animate-delay-300 { animation-delay: 0.3s; } .animate-delay-400 { animation-delay: 0.4s; } .animate-delay-500 { animation-delay: 0.5s; } .animate-delay-600 { animation-delay: 0.6s; } .animate-delay-700 { animation-delay: 0.7s; }
              .animate-delay-800 { animation-delay: 0.8s; } .animate-delay-900 { animation-delay: 0.9s; } .animate-delay-1000 { animation-delay: 1s; }
 
              /* Animation on Scroll Classes - Simplified to match E-Waste animation types */
@@ -714,7 +715,7 @@ $bank_details = [
          .hero-text h1 { @apply !text-white mb-4 drop-shadow-lg; } /* E-Waste hero h1 style */
          .hero-text p { @apply text-gray-200 max-w-3xl mx-auto lg:mx-0 mb-8 drop-shadow; text-base md:text-lg; } /* E-Waste hero p style */
          .hero-buttons { @apply flex flex-wrap justify-center lg:justify-start gap-4; } /* E-Waste hero button layout */
-         .hero-buttons .btn { @apply text-white; } /* Ensure text color on dark hero */
+         .hero-buttons .btn { @apply !text-white; } /* Ensure text color on dark hero */
          .hero-logo { @apply order-1 lg:order-2 flex-shrink-0 w-[180px] lg:w-auto; }
          .hero-logo img { @apply mx-auto w-36 h-36 md:w-48 md:h-48 lg:w-60 lg:h-60 rounded-full shadow-md bg-white/20 p-3; } /* Adapted logo style */
          .hero-scroll-indicator { @apply absolute bottom-8 left-1/2 -translate-x-1/2 z-10 hidden md:block; }
@@ -722,35 +723,71 @@ $bank_details = [
 
 
          /* Profile Section - Adapting E-Waste info section style */
-         #profile { @apply section-padding bg-neutral-light; } /* E-Waste neutral background */
+         #profile { @apply section-padding bg-white; } /* White background */
          #profile h2 { @apply section-title; } /* E-Waste title style */
          .profile-text h3 { @apply !text-primary-dark text-2xl mb-4 mt-6; } /* Primary-dark heading color */
          .profile-text p { @apply text-neutral text-base md:text-lg; } /* Neutral text color */
          .profile-image img { @apply rounded-lg shadow-md mx-auto w-full object-cover h-full max-h-[500px] border-2 border-gray-300; } /* E-Waste image border/shadow */
 
          /* Objectives Section - Adapting E-Waste section/item style */
-         #objectives { @apply section-padding bg-white; } /* White background */
+         #objectives { @apply section-padding bg-neutral-light; } /* E-Waste neutral background */
          #objectives h2 { @apply section-title; } /* E-Waste title style */
-         .objective-item { @apply bg-primary/5 p-4 rounded-lg shadow-sm border-l-4 border-primary flex items-start space-x-4 transition duration-300 ease-in-out hover:shadow-md hover:border-accent; } /* Card-like item */
-         .objective-item i { @apply text-primary group-hover:text-accent transition-colors duration-300 flex-shrink-0 w-6 text-center text-xl; } /* Icon styling */
-         .objective-item p { @apply text-sm text-neutral leading-relaxed; } /* Text style */
-         .objective-item p strong { @apply font-semibold text-primary-dark; } /* Strong text style */
+         <div class="max-w-6xl mx-auto grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12"> /* Gap matching E-Waste */
+             <div class="objective-item group animate-on-scroll slide-up animation-delay-100"> /* Card-like item */
+                 <i class="fas fa-users"></i><p>To collaborate genuinely <strong>with and among the people</strong>.</p>
+             </div>
+             <div class="objective-item group animate-on-scroll slide-up animation-delay-200">
+                 <i class="fas fa-people-carry"></i><p>To engage in <strong>creative & constructive social action</strong>.</p>
+             </div>
+             <div class="objective-item group animate-on-scroll slide-up animation-delay-300">
+                 <i class="fas fa-lightbulb"></i><p>To enhance knowledge of <strong>self & community realities</strong>.</p>
+             </div>
+             <div class="objective-item group animate-on-scroll slide-up animation-delay-400">
+                 <i class="fas fa-seedling"></i><p>To apply scholarship for <strong>mitigating social problems</strong>.</p>
+             </div>
+             <div class="objective-item group animate-on-scroll slide-up animation-delay-500">
+                 <i class="fas fa-tools"></i><p>To gain and apply skills in <strong>humanity development</strong>.</p>
+             </div>
+             <div class="objective-item group animate-on-scroll slide-up animation-delay-600">
+                 <i class="fas fa-recycle"></i><p>To promote <strong>sustainable practices</strong> & awareness.</p>
+             </div>
+        </div>
 
 
          /* Areas of Focus Section - Adapting E-Waste card grid style */
-         #areas-focus { @apply section-padding bg-neutral-light; } /* E-Waste neutral background */
+         #areas-focus { @apply section-padding bg-white; } /* White background */
          #areas-focus h2 { @apply section-title; } /* E-Waste title style */
-         .focus-item { @apply card text-center flex flex-col items-center border-t-4 border-primary hover:border-accent transition-colors; } /* E-Waste card style */
-         .focus-item .icon { @apply text-5xl text-accent mb-4 inline-block; } /* Accent color for icons */
-         .focus-item h3 { @apply text-xl text-primary-dark mb-2; } /* Primary-dark heading */
-         .focus-item p { @apply text-sm text-neutral leading-relaxed flex-grow mb-4 text-center; } /* Neutral text */
-         .focus-item .read-more-link { @apply relative block text-sm font-semibold text-primary mt-auto pt-2 border-t border-gray-200; } /* Primary link, border top */
-         .focus-item .read-more-link::after { content: '\f061'; font-family: 'Font Awesome 6 Free'; @apply font-black text-xs ml-1.5 inline-block;} /* Arrow icon */
+         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-12"> /* Gap matching E-Waste */
+             <!-- Health -->
+             <a href="blood-donation.php" title="Health Initiatives" class="focus-item group animate-on-scroll slide-up animation-delay-100 card-hover"> /* Card style */
+                 <span class="icon"><i class="fas fa-heart-pulse"></i></span> <h3>Health & Wellness</h3> /* H3 base style */
+                 <p>Prioritizing community well-being via awareness campaigns, blood drives, and promoting healthy lifestyles.</p> /* Neutral text */
+                 <span class="read-more-link">Blood Donation Program</span> /* Link style */
+             </a>
+             <!-- Education -->
+             <div class="focus-item group animate-on-scroll slide-up animation-delay-200 card-hover"> /* Card style */
+                 <span class="icon"><i class="fas fa-user-graduate"></i></span> <h3>Education & Skilling</h3> /* H3 base style */
+                 <p>Empowering youth by fostering ethical foundations, essential life skills, and professional readiness.</p> /* Neutral text */
+                 <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span> /* Link style */
+              </div>
+             <!-- Environment -->
+             <a href="e-waste.php" title="E-waste Recycling" class="focus-item group animate-on-scroll slide-up animation-delay-300 card-hover"> /* Card style */
+                  <span class="icon"><i class="fas fa-leaf"></i></span> <h3>Environment</h3> /* H3 base style */
+                  <p>Championing stewardship through plantation drives, waste management, and e-waste recycling.</p> /* Neutral text */
+                  <span class="read-more-link">E-Waste Program</span> /* Link style */
+             </a>
+             <!-- Communication -->
+             <div class="focus-item group animate-on-scroll slide-up animation-delay-400 card-hover"> /* Card style */
+                 <span class="icon"><i class="fas fa-comments"></i></span> <h3>Communication Skills</h3> /* H3 base style */
+                 <p>Enhancing verbal, non-verbal, and presentation abilities in youth via interactive programs.</p> /* Neutral text */
+                  <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span> /* Link style */
+             </div>
+         </div>
 
 
          /* How to Join / Get Involved Section - Adapting E-Waste animated gradient style */
           #volunteer-section { @apply section-padding animated-gradient-secondary text-white relative overflow-hidden; } /* Use accent gradient utility */
-          #volunteer-section h2 { @apply section-title !text-white; } /* White title on dark background */
+          #volunteer-section h2 { @apply section-title !text-white; } /* White title */
           #volunteer-section h2::after { @apply !bg-accent; } /* Accent underline */
           #volunteer-section h3 { @apply text-white text-2xl md:text-3xl font-bold mb-4; } /* White heading */
           #volunteer-section p { @apply text-gray-200 text-base md:text-lg mb-6; } /* Light gray text */
@@ -767,41 +804,66 @@ $bank_details = [
 
 
          /* News & Events Section - Adapting E-Waste section/card style */
-         #news-section { @apply section-padding bg-white; } /* White background */
+         #news-section { @apply section-padding bg-neutral-light; } /* Neutral background */
          #news-section h2 { @apply section-title; } /* E-Waste title style */
-         #news-section .news-card { @apply card flex flex-col; } /* E-Waste card style */
-         #news-section .news-card img { @apply rounded-t-lg; } /* Ensure img corners match card */
-         #news-section .news-card .news-content { @apply p-4 flex flex-col flex-grow; } /* Reduced padding */
-         #news-section .news-card .date { @apply block text-xs text-neutral mb-2; } /* Neutral text */
-         #news-section .news-card .date i { @apply opacity-70; } /* Icon opacity */
-         #news-section .news-card h4 { @apply text-lg font-semibold text-primary-dark mb-2 leading-snug flex-grow; } /* Primary-dark heading */
-         #news-section .news-card h4 a { @apply text-inherit hover:text-primary; } /* Inherit color, hover primary */
-         #news-section .news-card p { @apply text-sm text-neutral mb-4 leading-relaxed; } /* Neutral text */
-         #news-section .news-card .read-more-action { @apply mt-auto pt-3 border-t border-gray-200; } /* Border top */
-         #news-section .news-card .read-more-action a { @apply btn-outline !text-sm !py-1 !px-3; } /* Outline button */
+         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12"> /* Gap matching E-Waste */
+             <?php if (!empty($news_items)): ?>
+                 <?php foreach ($news_items as $index => $item): ?>
+                 <div class="news-card group animate-on-scroll slide-up animation-delay-<?= ($index * 100) ?> card-hover"> /* Card style, animation */
+                     <a href="<?= htmlspecialchars($item['link']) ?>" class="block aspect-[16/10] overflow-hidden rounded-t-lg" title="Read more"> /* Rounded top corners */
+                          <img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['title']) ?>" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"> /* Simple scale hover */
+                     </a>
+                     <div class="news-content p-4"> /* Padding */
+                          <span class="date"><i class="far fa-calendar-alt mr-1 text-neutral-medium"></i><?= date('M j, Y', strtotime($item['date'])) ?></span> /* Neutral text, icon */
+                          <h4 class="my-2"><a href="<?= htmlspecialchars($item['link']) ?>" class="text-primary-dark hover:text-primary"><?= htmlspecialchars($item['title']) ?></a></h4> /* Primary-dark heading, primary hover */
+                          <p class="text-sm text-neutral mb-4 leading-relaxed"><?= htmlspecialchars($item['excerpt']) ?></p> /* Neutral text */
+                           <div class="read-more-action mt-auto pt-3 border-t border-gray-200"> /* Border top */
+                               <a href="<?= htmlspecialchars($item['link']) ?>" class="btn btn-outline !text-sm !py-1 !px-3">Read More <i class="fas fa-arrow-right text-xs ml-1"></i></a> /* Outline button */
+                           </div>
+                        </div>
+                 </div>
+                 <?php endforeach; ?>
+              <?php else: ?>
+                  <p class="text-center text-neutral md:col-span-2 lg:col-span-3">No recent news.</p> /* Neutral text */
+              <?php endif; ?>
+         </div>
 
 
          /* Gallery Section - Adapting E-Waste section/item style */
-         #gallery-section { @apply section-padding bg-neutral-light; } /* E-Waste neutral background */
+         #gallery-section { @apply section-padding bg-white; } /* White background */
          #gallery-section h2 { @apply section-title; } /* E-Waste title style */
-         .gallery-item { @apply block aspect-video rounded-lg overflow-hidden shadow-md group transition-all duration-300 hover:shadow-xl hover:scale-105; } /* Card-like item */
-         .gallery-item img { @apply w-full h-full object-cover transition-all duration-300 ease-in-out group-hover:scale-110; } /* Simple scale hover */
-         #gallery-section p.text-neutral { @apply text-center mt-8 text-neutral italic text-sm; } /* Neutral italic text */
+         <?php if (!empty($gallery_images)): ?>
+             <div class="gallery grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-12"> /* Gap matching E-Waste */
+                 <?php foreach ($gallery_images as $index => $image): ?>
+                 <a href="<?= htmlspecialchars($image['src']) ?>" class="gallery-item block aspect-video rounded-lg overflow-hidden shadow-md group animate-on-scroll slide-up animation-delay-<?= ($index * 50) ?> transition-all duration-300 hover:shadow-xl hover:scale-105"> /* Item style, animation */
+                      <img src="<?= htmlspecialchars($image['src']) ?>" alt="<?= htmlspecialchars($image['alt']) ?>" loading="lazy" class="w-full h-full object-cover transition-all duration-300 ease-in-out group-hover:scale-110"> /* Simple scale hover */
+                  </a>
+                 <?php endforeach; ?>
+             </div>
+             <p class="text-center mt-6 text-neutral italic text-sm">Click images to view larger.</p> /* Neutral italic text */
+         <?php else: ?>
+              <p class="text-center text-neutral">Gallery coming soon.</p> /* Neutral text */
+         <?php endif; ?>
 
 
          /* Associates Section - Adapting E-Waste section/item style */
-         #associates { @apply section-padding bg-white; } /* White background */
+         #associates { @apply section-padding bg-neutral-light; } /* Neutral background */
          #associates h2 { @apply section-title; } /* E-Waste title style */
          #associates p.text-neutral { @apply text-center max-w-3xl mx-auto text-lg text-neutral mb-12; } /* Neutral text */
-         .associate-logo { @apply text-center group transform transition duration-300 hover:scale-110; }
-         .associate-logo img { @apply max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100; } /* E-Waste logo style */
-         .associate-logo p { @apply text-xs font-medium text-neutral group-hover:text-primary transition-colors; } /* Neutral text, primary hover */
+         <div class="flex flex-wrap justify-center items-center gap-x-10 md:gap-x-16 gap-y-10"> /* Gap matching E-Waste */
+             <?php foreach ($associates as $index => $associate): ?>
+             <div class="associate-logo text-center group transform transition duration-300 hover:scale-110 animate-on-scroll slide-up animation-delay-<?= ($index * 50) ?>"> /* Item style, animation */
+                 <img src="<?= htmlspecialchars($associate['img']) ?>" alt="<?= htmlspecialchars($associate['name']) ?> Logo" class="max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100"> /* E-Waste logo style */
+                 <p class="text-xs font-medium text-neutral group-hover:text-primary transition-colors"><?= htmlspecialchars($associate['name']) ?></p> /* Neutral text, primary hover */
+              </div>
+             <?php endforeach; ?>
+         </div>
 
 
          /* Donation CTA Section - Adapting E-Waste animated gradient style */
           #donate-section { @apply section-padding text-center relative overflow-hidden animated-gradient-primary; } /* Use primary gradient utility */
-           #donate-section i.fas.fa-donate { @apply text-white bg-accent p-4 rounded-full shadow-md mb-6 inline-block; } /* Accent background icon */
-          #donate-section h2 { @apply section-title !text-white; } /* White title on dark background */
+           #donate-section i.fas.fa-donate { @apply text-white bg-accent p-4 rounded-full shadow-md mb-6 inline-block animate-pulse-glow; } /* Accent background icon, E-Waste animation */
+          #donate-section h2 { @apply section-title !text-white; } /* White title */
            #donate-section h2::after { @apply !bg-white; } /* White underline */
            #donate-section p { @apply text-gray-200 text-base md:text-lg mb-6; } /* Light gray text */
            #donate-section p.bg-black\/25 { @apply text-gray-200 bg-black/20 inline-block px-4 py-1.5 rounded-full text-sm font-semibold mb-8 backdrop-blur-sm border border-white/20; } /* Light background text */
@@ -810,22 +872,76 @@ $bank_details = [
 
 
          /* Contact Section - Adapting E-Waste section/form style */
-          #contact { @apply section-padding bg-neutral-light; } /* E-Waste neutral background */
+          #contact { @apply section-padding bg-white; } /* White background */
           #contact h2 { @apply section-title; } /* E-Waste title style */
           #contact p.text-neutral { @apply text-center max-w-3xl mx-auto text-lg text-neutral mb-12; } /* Neutral text */
-          #contact .contact-info { @apply space-y-6 text-neutral text-base mb-10; } /* Neutral text */
-          .contact-info-item { @apply flex items-start gap-4; } /* Layout */
-          .contact-info-item i { @apply text-primary text-lg mt-1 w-5 text-center flex-shrink-0; } /* Primary icon */
-          .contact-info-item a { @apply text-primary hover:text-primary-dark underline; } /* Primary link */
-          #contact h4 { @apply text-primary-dark text-xl font-semibold mb-4 mt-8; } /* Primary-dark heading */
-          #contact iframe { @apply rounded-lg shadow-md border border-gray-300; } /* E-Waste border/shadow */
-          #contact .registration-info { @apply bg-white p-4 rounded-md border border-gray-200 text-xs text-neutral mt-8 shadow-inner;} /* White info box */
-          #contact .registration-info h4 { @apply text-primary-dark text-sm font-semibold mb-2 !mt-0; } /* Primary-dark heading */
-          #contact .form-section { @apply bg-white p-6 md:p-8 rounded-lg shadow-lg border-t-4 border-accent mt-0; } /* E-Waste form section */
-          #contact .form-section h3 { @apply text-primary-dark text-2xl mb-6 text-center lg:text-left; } /* Primary-dark heading */
-           #contact .form-section label { @apply text-gray-700; } /* Standard label color */
-           #contact .form-section input, #contact .form-section textarea { @apply bg-white border-gray-300 text-neutral-dark; } /* Standard form inputs */
-           #contact .form-section button { @apply btn btn-primary; } /* Primary button */
+         <div class="grid lg:grid-cols-5 gap-8 lg:gap-12 items-start"> /* Gap matching E-Waste */
+              <!-- Contact Details -->
+              <div class="lg:col-span-2 animate-on-scroll slide-up animation-delay-100"> /* Use E-Waste animation */
+                  <h3>Contact Information</h3> /* H3 base style */
+                  <address class="contact-info space-y-6 text-neutral text-base mb-10"> /* Neutral text */
+                     <div class="contact-info-item"><i class="fas fa-map-marker-alt"></i><div><span>Our Office:</span> 36 New Vivekanand Park, Maqsudan,<br>Jalandhar, Punjab - 144008</div></div>
+                     <div class="contact-info-item"><i class="fas fa-phone-alt"></i><div><span>Phone Lines:</span> <a href="tel:+911812672784">181-267-2784</a><br><a href="tel:+919855614230">98556-14230</a></div></div>
+                     <div class="contact-info-item"><i class="fas fa-envelope"></i><div><span>Email Us:</span> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></div></div>
+                  </address>
+                 <div class="mb-8 pt-6 border-t border-gray-200"> /* Border top */
+                     <h4>Follow Our Journey</h4> /* H4 base style */
+                     <div class="flex justify-center lg:justify-start space-x-5 social-icons mt-4">
+                         <!-- Social Icons HTML here -->
+                         <!-- Example: <a href="#" class="text-gray-600 hover:text-primary text-xl transition-colors"><i class="fab fa-facebook-f"></i></a> -->
+                     </div>
+                 </div>
+                  <div class="mb-8 pt-6 border-t border-gray-200"> /* Border top */
+                      <h4>Visit Us</h4> /* H4 base style */
+                      <!-- Placeholder Map -->
+                      <div id="contact-map" class="h-[300px] w-full rounded-lg shadow-md border border-gray-300 mt-4 z-0">
+                         <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3410.489041988969!2d75.59636197570526!3d31.339703354305917!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5a4b351b651b%3A0x98ac38930b192e0f!2sPahal%20NGO!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-gray-300"></iframe>
+                      </div>
+                  </div>
+                  <div class="registration-info bg-neutral-light p-4 rounded-md border border-gray-200 text-xs text-neutral mt-8 shadow-inner"> /* Info box style */
+                      <h4 class="text-primary-dark text-sm font-semibold mb-2 !mt-0">Registration</h4> /* Primary-dark heading */
+                      <p>Registered under: Registrar of Firms & Societies, Punjab</p>
+                      <p>Reg No: 737</p>
+                      <p>Tax Exemptions: 80G & 12A Certified</p>
+                  </div>
+              </div>
+             <!-- Contact Form - Adapting E-Waste form section style -->
+             <div class="lg:col-span-3 form-section max-w-xl mx-auto lg:mx-0 animate-on-scroll slide-up animation-delay-200"> /* Use E-Waste form section, animation */
+                 <h3 class="text-2xl mb-6 text-primary font-semibold text-center lg:text-left">Send Us a Message</h3> /* Primary heading */
+                 <?= get_form_status_html('contact_form') ?>
+                 <form id="contact-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#contact" method="POST" class="space-y-6">
+                     <!-- Hidden fields -->
+                     <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                     <input type="hidden" name="form_id" value="contact_form">
+                     <div class="honeypot-field" aria-hidden="true">
+                          <label for="website_url_main">Keep This Blank</label>
+                          <input type="text" id="website_url_main" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
+                     </div>
+                     <!-- Form Fields -->
+                     <div>
+                          <label for="contact_name" class="required">Name</label>
+                          <input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" aria-required="true" <?= get_aria_describedby('contact_form', 'name') ?>>
+                          <?= get_field_error_html('contact_form', 'name') ?>
+                      </div>
+                     <div>
+                          <label for="contact_email" class="required">Email</label>
+                          <input type="email" id="contact_email" name="email" required value="<?= $contact_form_email_value ?>" class="<?= get_field_error_class('contact_form', 'email') ?>" placeholder="e.g., jane.doe@example.com" aria-required="true" <?= get_aria_describedby('contact_form', 'email') ?>>
+                          <?= get_field_error_html('contact_form', 'email') ?>
+                      </div>
+                     <div>
+                          <label for="contact_message" class="required">Message</label>
+                          <textarea id="contact_message" name="message" rows="5" required class="<?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your thoughts..." aria-required="true" <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea>
+                          <?= get_field_error_html('contact_form', 'message') ?>
+                      </div>
+                     <div class="pt-4 text-center lg:text-left"> /* Button alignment */
+                          <button type="submit" class="btn btn-primary w-full sm:w-auto" id="contact-submit-button"> /* Primary button */
+                              <span class="spinner hidden mr-2"></span>
+                              <span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Send Message</span>
+                          </button>
+                      </div>
+                 </form>
+              </div>
+          </div>
 
 
          /* Footer - Matching E-Waste style */
@@ -850,475 +966,74 @@ $bank_details = [
           footer .footer-bottom { @apply border-t border-gray-700/50 pt-8 mt-12 text-center text-sm text-gray-500; } /* Bottom bar */
           footer .footer-bottom a { @apply hover:text-white hover:underline; }
 
+
+         /* Back to Top Button - Matching E-Waste button concept */
+         #back-to-top { @apply fixed bottom-6 right-6 z-[60] p-3 rounded-full bg-primary text-white shadow-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 opacity-0 invisible transition-all duration-300 hover:-translate-y-0.5; }
+         #back-to-top.visible { @apply opacity-100 visible; }
+
+
+         /* Modal Styles - Simplified to match E-Waste basic styles */
+         .modal-container { @apply fixed inset-0 bg-black/50 z-[100] hidden items-center justify-center p-4 transition-opacity duration-300 ease-out; }
+         .modal-container.flex { @apply flex; opacity: 1; }
+         .modal-container.hidden { @apply hidden; opacity: 0; }
+
+         .modal-box { @apply bg-white rounded-lg shadow-xl p-6 md:p-8 w-full max-w-lg text-left relative transform transition-all duration-300 scale-95 opacity-0; }
+         .modal-container.flex .modal-box { @apply scale-100 opacity: 1; }
+
+         #bank-details-modal h3 { @apply !text-primary !mt-0 mb-4 border-b border-gray-200 pb-3 text-2xl font-bold; } /* Adjusted modal title style */
+         .modal-content-box { @apply bg-neutral-light p-4 rounded-md border border-gray-300 space-y-2 my-5 text-sm text-neutral-dark; } /* Match E-Waste neutral colors */
+         .modal-content-box p strong { @apply font-semibold text-primary-dark; }
+         <p class="modal-footer-note">For queries or receipts, contact us. Thank you!</p> /* Neutral italic text */
+         .close-button { @apply absolute top-4 right-4 text-gray-700 hover:text-danger p-1 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-danger; }
+
     </style>
     <!-- Schema.org JSON-LD (Keep Existing) -->
     <script type="application/ld+json">
     {
-      "@context": "https://schema.org", "@type": "NGO", "name": "PAHAL NGO", /* ... rest of schema ... */
-      "url": "https://your-pahal-domain.com/", "logo": "https://your-pahal-domain.com/icon.webp",
+      "@context": "https://schema.org",
+      "@type": "NGO",
+      "name": "PAHAL NGO",
+      "url": "https://your-pahal-domain.com/", /* CHANGE */
+      "logo": "https://your-pahal-domain.com/icon.webp", /* CHANGE */
       "description": "PAHAL is a voluntary youth organization in Jalandhar dedicated to holistic personality development, community service, and fostering positive change in health, education, environment, and communication.",
-      "address": {"@type": "PostalAddress", "streetAddress": "36 New Vivekanand Park, Maqsudan", "addressLocality": "Jalandhar", "addressRegion": "Punjab", "postalCode": "144008", "addressCountry": "IN" },
-      "contactPoint": [ /* ... contact points ... */ ], "sameAs": [ /* ... social links ... */ ]
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "36 New Vivekanand Park, Maqsudan",
+        "addressLocality": "Jalandhar",
+        "addressRegion": "Punjab",
+        "postalCode": "144008",
+        "addressCountry": "IN"
+      },
+      "contactPoint": [
+        {
+          "@type": "ContactPoint",
+          "telephone": "+911812672784",
+          "contactType": "General Inquiries"
+        },
+         {
+          "@type": "ContactPoint",
+          "telephone": "+919855614230",
+          "contactType": "Mobile"
+        },
+        {
+          "@type": "ContactPoint",
+          "email": "engage@pahal-ngo.org",
+          "contactType": "General Inquiries"
+        }
+        /* Add other specific contacts like blood, e-waste if applicable */
+      ],
+      "sameAs": [
+        "https://www.facebook.com/pahal.ngo/", /* CHANGE */
+        "https://twitter.com/pahal_ngo", /* CHANGE */
+        "https://www.instagram.com/pahal.ngo/", /* CHANGE */
+        "https://www.linkedin.com/company/pahal-ngo/" /* CHANGE */
+        /* Add other social media links */
+      ]
     }
     </script>
-</head>
-<!-- Body class removed - base styles handle background/font -->
-<body class="pt-[70px]"> <!-- Explicitly add padding for fixed header -->
-
-<!-- Header - Matching E-Waste style -->
-<header id="main-header">
-    <div class="container mx-auto flex flex-wrap items-center justify-between">
-         <div class="logo flex-shrink-0 py-2">
-             <a href="#hero" aria-label="PAHAL NGO Home" class="text-3xl md:text-4xl font-black text-primary font-heading leading-none flex items-center transition-opacity hover:opacity-80">
-                <img src="icon.webp" alt="PAHAL Icon" class="h-8 w-8 mr-2 inline object-contain" aria-hidden="true"> <!-- Removed pulse animation from icon -->
-                PAHAL
-             </a>
-             <p class="text-xs text-neutral italic ml-10 -mt-1.5 hidden sm:block">An Endeavour for a Better Tomorrow</p> <!-- Adjusted ml -->
-        </div>
-        <!-- Mobile menu toggle - Matching E-Waste structure (but need to implement JS) -->
-        <button id="mobile-menu-toggle" aria-label="Toggle Menu" aria-expanded="false" aria-controls="navbar" class="menu-toggle lg:hidden p-2 focus:outline-none focus:ring-2 focus:ring-primary rounded">
-            <span class="sr-only">Open menu</span> <span></span> <span></span> <span></span>
-        </button>
-        <!-- Navigation - Matching E-Waste structure -->
-        <nav id="navbar" aria-label="Main Navigation" class="navbar-container"> <!-- Use class for JS targeting -->
-            <ul>
-                <li><a href="#hero" class="nav-link">Home</a></li>
-                <li><a href="#profile" class="nav-link">Profile</a></li>
-                <li><a href="#objectives" class="nav-link">Objectives</a></li>
-                <li><a href="#areas-focus" class="nav-link">Focus Areas</a></li>
-                <li><a href="#news-section" class="nav-link">News</a></li>
-                <li><a href="#volunteer-section" class="nav-link">Get Involved</a></li>
-                <li><a href="blood-donation.php" class="nav-link">Blood Drive</a></li>
-                <li><a href="e-waste.php" class="nav-link">E-Waste</a></li>
-                <li><a href="#contact" class="nav-link">Contact</a></li>
-                <!-- Removed theme toggle from header HTML -->
-            </ul>
-        </nav>
-    </div>
-</header>
-
-<main>
-    <!-- Hero Section - Adapting E-Waste hero style -->
-    <section id="hero" class="relative animated-gradient-primary">
-        <!-- Background overlay removed -->
-        <div class="container mx-auto relative z-10 flex flex-col-reverse lg:flex-row items-center justify-between gap-10 text-center lg:text-left">
-             <div class="hero-text flex-1 order-2 lg:order-1 flex flex-col items-center lg:items-start justify-center text-center lg:text-left animate-on-scroll fade-in-scale animation-delay-100"> <!-- Use E-Waste animation -->
-              <h1 class="font-heading !text-white"> <!-- Ensure white text -->
-                 Empowering Communities,<br> Inspiring Change
-              </h1>
-              <p class="text-lg lg:text-xl my-4 max-w-xl mx-auto lg:mx-0 text-gray-200"> <!-- Reduced margin, light text -->
-                Join PAHAL, a youth-driven NGO in Jalandhar, committed to holistic development and tangible social impact through dedicated action in health, education, environment, and communication.
-              </p>
-              <div class="hero-buttons mt-6 flex flex-wrap justify-center lg:justify-start gap-4 animate-on-scroll fade-in-scale animation-delay-200"> <!-- Use E-Waste animation -->
-                <!-- Button classes using E-Waste definitions -->
-                <a href="#profile" class="btn btn-secondary"><i class="fas fa-info-circle"></i>Discover More</a>
-                 <a href="#volunteer-section" class="btn btn-primary"><i class="fas fa-hands-helping"></i>Get Involved</a>
-              </div>
-            </div>
-            <div class="hero-logo order-1 lg:order-2 flex-shrink-0 w-[180px] lg:w-auto animate-on-scroll fade-in-scale animation-delay-300"> <!-- Use E-Waste animation -->
-                 <img src="icon.webp" alt="PAHAL NGO Large Logo Icon" class="mx-auto w-36 h-36 md:w-48 md:h-48 lg:w-60 lg:h-60 rounded-full shadow-md bg-white/20 p-3"> <!-- Adapted logo style -->
-            </div>
-        </div>
-        <div class="hero-scroll-indicator">
-             <a href="#profile" aria-label="Scroll down"><i class="fas fa-chevron-down"></i></a>
-        </div>
-    </section>
-
-    <!-- Profile Section - Adapting E-Waste info section style -->
-    <section id="profile" class="section-padding bg-white"> <!-- White background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-             <h2 class="section-title">Our Profile & Vision</h2>
-             <div class="grid md:grid-cols-5 gap-8 items-center mt-12"> <!-- Gap matching E-Waste -->
-                 <div class="md:col-span-3 profile-text">
-                    <h3>Who We Are</h3> <!-- H3 base style -->
-                    <p class="text-neutral text-base md:text-lg">'PAHAL' (Initiative) stands as a testament to collective action... driven by a singular vision: to catalyze perceptible, positive transformation within our social fabric.</p> <!-- Neutral text -->
-                    <blockquote><p>"PAHAL is an endeavour for a Better Tomorrow"</p></blockquote> <!-- Blockquote base style -->
-                    <h3 class="mt-8">Our Core Vision</h3> <!-- H3 base style -->
-                    <p class="text-neutral text-base md:text-lg">We aim to cultivate <strong class="text-primary-dark font-semibold">Holistic Personality Development</strong>... thereby building a more compassionate and equitable world.</p> <!-- Neutral text, primary-dark strong -->
-                 </div>
-                 <div class="md:col-span-2 profile-image animate-on-scroll slide-up animation-delay-200"> <!-- Use E-Waste animation -->
-                    <img src="https://via.placeholder.com/500x600.png/059669/f9fafb?text=PAHAL+Vision" alt="PAHAL NGO team vision" class="rounded-lg shadow-md mx-auto w-full object-cover h-full max-h-[500px] border-2 border-gray-300"> <!-- E-Waste image style -->
-                </div>
-             </div>
-        </div>
-    </section>
-
-    <!-- Objectives Section - Adapting E-Waste section/item style -->
-     <section id="objectives" class="section-padding bg-neutral-light"> <!-- E-Waste neutral background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-             <h2 class="section-title">Our Guiding Objectives</h2>
-             <div class="max-w-6xl mx-auto grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12"> <!-- Gap matching E-Waste -->
-                 <div class="objective-item group animate-on-scroll slide-up animation-delay-100"> <!-- Card-like item -->
-                     <i class="fas fa-users"></i><p>To collaborate genuinely <strong>with and among the people</strong>.</p>
-                 </div>
-                 <div class="objective-item group animate-on-scroll slide-up animation-delay-200">
-                     <i class="fas fa-people-carry"></i><p>To engage in <strong>creative & constructive social action</strong>.</p>
-                 </div>
-                 <div class="objective-item group animate-on-scroll slide-up animation-delay-300">
-                     <i class="fas fa-lightbulb"></i><p>To enhance knowledge of <strong>self & community realities</strong>.</p>
-                 </div>
-                 <div class="objective-item group animate-on-scroll slide-up animation-delay-400">
-                     <i class="fas fa-seedling"></i><p>To apply scholarship for <strong>mitigating social problems</strong>.</p>
-                 </div>
-                 <div class="objective-item group animate-on-scroll slide-up animation-delay-500">
-                     <i class="fas fa-tools"></i><p>To gain and apply skills in <strong>humanity development</strong>.</p>
-                 </div>
-                 <div class="objective-item group animate-on-scroll slide-up animation-delay-600">
-                     <i class="fas fa-recycle"></i><p>To promote <strong>sustainable practices</strong> & awareness.</p>
-                 </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Areas of Focus Section - Adapting E-Waste card grid style -->
-    <section id="areas-focus" class="section-padding bg-white"> <!-- White background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-            <h2 class="section-title">Our Key Focus Areas</h2>
-             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-12"> <!-- Gap matching E-Waste -->
-                 <!-- Health -->
-                 <a href="blood-donation.php" title="Health Initiatives" class="focus-item group animate-on-scroll slide-up animation-delay-100 card-hover"> <!-- Card style -->
-                     <span class="icon"><i class="fas fa-heart-pulse"></i></span> <h3>Health & Wellness</h3> <!-- H3 base style -->
-                     <p>Prioritizing community well-being via awareness campaigns, blood drives, and promoting healthy lifestyles.</p> <!-- Neutral text -->
-                     <span class="read-more-link">Blood Donation Program</span> <!-- Link style -->
-                 </a>
-                 <!-- Education -->
-                 <div class="focus-item group animate-on-scroll slide-up animation-delay-200 card-hover"> <!-- Card style -->
-                     <span class="icon"><i class="fas fa-user-graduate"></i></span> <h3>Education & Skilling</h3> <!-- H3 base style -->
-                     <p>Empowering youth by fostering ethical foundations, essential life skills, and professional readiness.</p> <!-- Neutral text -->
-                     <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span> <!-- Link style -->
-                  </div>
-                 <!-- Environment -->
-                 <a href="e-waste.php" title="E-waste Recycling" class="focus-item group animate-on-scroll slide-up animation-delay-300 card-hover"> <!-- Card style -->
-                      <span class="icon"><i class="fas fa-leaf"></i></span> <h3>Environment</h3> <!-- H3 base style -->
-                      <p>Championing stewardship through plantation drives, waste management, and e-waste recycling.</p> <!-- Neutral text -->
-                      <span class="read-more-link">E-Waste Program</span> <!-- Link style -->
-                 </a>
-                 <!-- Communication -->
-                 <div class="focus-item group animate-on-scroll slide-up animation-delay-400 card-hover"> <!-- Card style -->
-                     <span class="icon"><i class="fas fa-comments"></i></span> <h3>Communication Skills</h3> <!-- H3 base style -->
-                     <p>Enhancing verbal, non-verbal, and presentation abilities in youth via interactive programs.</p> <!-- Neutral text -->
-                      <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span> <!-- Link style -->
-                 </div>
-             </div>
-        </div>
-    </section>
-
-    <!-- How to Join / Get Involved Section - Adapting E-Waste animated gradient style -->
-     <section id="volunteer-section" class="section-padding animated-gradient-secondary text-white relative">
-        <!-- Darkening Overlay not strictly needed with animated gradient background, but kept for visual effect -->
-        <div class="absolute inset-0 bg-black/30 mix-blend-multiply z-0"></div> <!-- Darkening Overlay -->
-        <div class="container mx-auto relative z-10 grid lg:grid-cols-2 gap-12 items-center mt-0"> <!-- Added grid/gap -->
-             <div class="text-center lg:text-left animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-                <h2 class="section-title !text-white">Join the PAHAL Movement</h2> <!-- White title -->
-                 <h3>Make a Difference, Volunteer With Us</h3> <!-- H3 style adapted for white text -->
-                <p class="text-gray-200 text-base md:text-lg mb-6">PAHAL welcomes passionate individuals... Your time, skills, and dedication are invaluable assets.</p> <!-- Light gray text -->
-                <p class="text-gray-200 text-base md:text-lg mb-8">Volunteering offers a rewarding experience... Express your interest below!</p> <!-- Light gray text -->
-                 <div class="mt-6 flex flex-wrap justify-center lg:justify-start gap-4">
-                     <a href="#contact" class="btn btn-outline !border-white !text-white hover:!bg-white hover:!text-primary"><i class="fas fa-phone-alt"></i>Contact Directly</a> <!-- White outline, primary text on hover -->
-                     <!-- Removed View Opportunities button -->
-                 </div>
-             </div>
-             <!-- Volunteer Sign-up Form - Adapting E-Waste form section style -->
-             <div class="form-section max-w-lg mx-auto lg:mx-0 animate-on-scroll slide-up animation-delay-200"> <!-- Use E-Waste form-section, animation -->
-                 <h3 class="text-2xl mb-6 text-primary font-semibold text-center">Register Your Volunteer Interest</h3> <!-- Primary heading -->
-                 <?= get_form_status_html('volunteer_form') ?>
-                <form id="volunteer-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#volunteer-section" method="POST" class="space-y-5">
-                    <!-- Hidden Fields -->
-                    <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
-                    <input type="hidden" name="form_id" value="volunteer_form">
-                    <div class="honeypot-field" aria-hidden="true">
-                        <label for="website_url_volunteer">Keep This Blank</label>
-                        <input type="text" id="website_url_volunteer" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
-                    </div>
-                    <!-- Form Fields (using base styles + error classes) -->
-                    <div>
-                         <label for="volunteer_name" class="required">Full Name</label> <!-- Base label style -->
-                        <input type="text" id="volunteer_name" name="volunteer_name" required value="<?= $volunteer_form_name_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_name') ?>" placeholder="Your Name" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_name') ?>> <!-- Base input + error class -->
-                        <?= get_field_error_html('volunteer_form', 'volunteer_name') ?> <!-- Error helper -->
-                    </div>
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div>
-                             <label for="volunteer_email">Email</label>
-                             <input type="email" id="volunteer_email" name="volunteer_email" value="<?= $volunteer_form_email_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_email') ?>" placeholder="your.email@example.com" <?= get_aria_describedby('volunteer_form', 'volunteer_email') ?>>
-                             <?= get_field_error_html('volunteer_form', 'volunteer_email') ?>
-                         </div>
-                        <div>
-                             <label for="volunteer_phone">Phone</label>
-                             <input type="tel" id="volunteer_phone" name="volunteer_phone" value="<?= $volunteer_form_phone_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_phone') ?>" placeholder="Your Phone" <?= get_aria_describedby('volunteer_form', 'volunteer_phone') ?>>
-                             <?= get_field_error_html('volunteer_form', 'volunteer_phone') ?>
-                         </div>
-                    </div>
-                    <p class="text-xs text-gray-500 -mt-3" id="volunteer_contact_note">Provide Email or Phone.</p>
-                    <div>
-                         <label for="volunteer_area" class="required">Area of Interest</label>
-                         <select id="volunteer_area" name="volunteer_area" required class="<?= get_field_error_class('volunteer_form', 'volunteer_area') ?>" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_area') ?>>
-                             <option value="" disabled <?= empty($volunteer_form_area_value) ? 'selected' : ''?>>-- Select --</option>
-                             <option value="Health" <?= $volunteer_form_area_value == 'Health' ? 'selected' : ''?>>Health</option>
-                             <option value="Education" <?= $volunteer_form_area_value == 'Education' ? 'selected' : ''?>>Education</option>
-                             <option value="Environment" <?= $volunteer_form_area_value == 'Environment' ? 'selected' : ''?>>Environment</option>
-                             <option value="Communication Skills" <?= $volunteer_form_area_value == 'Communication Skills' ? 'selected' : ''?>>Communication Skills</option>
-                             <option value="Other" <?= $volunteer_form_area_value == 'Other' ? 'selected' : ''?>>Other</option>
-                         </select>
-                         <?= get_field_error_html('volunteer_form', 'volunteer_area') ?>
-                     </div>
-                    <div>
-                         <label for="volunteer_availability" class="required">Availability</label>
-                         <input type="text" id="volunteer_availability" name="volunteer_availability" required value="<?= $volunteer_form_availability_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_availability') ?>" placeholder="e.g., Weekends, Evenings" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_availability') ?>>
-                         <?= get_field_error_html('volunteer_form', 'volunteer_availability') ?>
-                     </div>
-                    <div>
-                         <label for="volunteer_message">Message (Optional)</label>
-                         <textarea id="volunteer_message" name="volunteer_message" rows="3" class="<?= get_field_error_class('volunteer_form', 'volunteer_message') ?>" placeholder="Your motivation or skills..." <?= get_aria_describedby('volunteer_form', 'volunteer_message') ?>><?= $volunteer_form_message_value ?></textarea>
-                         <?= get_field_error_html('volunteer_form', 'volunteer_message') ?>
-                     </div>
-                    <div class="pt-4 text-center"> <!-- E-Waste button alignment -->
-                         <button type="submit" class="btn btn-accent w-full sm:w-auto" id="volunteer-submit-button"> <!-- Accent button -->
-                             <span class="spinner hidden mr-2"></span>
-                             <span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Submit Interest</span>
-                         </button>
-                     </div>
-                </form>
-             </div>
-         </div>
-     </section>
 
 
-    <!-- News & Events Section - Adapting E-Waste section/card style -->
-    <section id="news-section" class="section-padding bg-neutral-light"> <!-- Neutral background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-            <h2 class="section-title">Latest News & Events</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12"> <!-- Gap matching E-Waste -->
-                <?php if (!empty($news_items)): ?>
-                    <?php foreach ($news_items as $index => $item): ?>
-                    <div class="news-card group animate-on-scroll slide-up animation-delay-<?= ($index * 100) ?> card-hover"> <!-- Card style, animation -->
-                        <a href="<?= htmlspecialchars($item['link']) ?>" class="block aspect-[16/10] overflow-hidden rounded-t-lg" title="Read more"> <!-- Rounded top corners -->
-                             <img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['title']) ?>" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"> <!-- Simple scale hover -->
-                        </a>
-                        <div class="news-content p-4"> <!-- Padding -->
-                             <span class="date"><i class="far fa-calendar-alt mr-1 text-neutral-medium"></i><?= date('M j, Y', strtotime($item['date'])) ?></span> <!-- Neutral text, icon -->
-                             <h4 class="my-2"><a href="<?= htmlspecialchars($item['link']) ?>" class="text-primary-dark hover:text-primary"><?= htmlspecialchars($item['title']) ?></a></h4> <!-- Primary-dark heading, primary hover -->
-                             <p class="text-sm text-neutral mb-4 leading-relaxed"><?= htmlspecialchars($item['excerpt']) ?></p> <!-- Neutral text -->
-                              <div class="read-more-action mt-auto pt-3 border-t border-gray-200"> <!-- Border top -->
-                                   <a href="<?= htmlspecialchars($item['link']) ?>" class="btn btn-outline !text-sm !py-1 !px-3">Read More <i class="fas fa-arrow-right text-xs ml-1"></i></a> <!-- Outline button -->
-                              </div>
-                         </div>
-                    </div>
-                    <?php endforeach; ?>
-                 <?php else: ?>
-                     <p class="text-center text-neutral md:col-span-2 lg:col-span-3">No recent news.</p> <!-- Neutral text -->
-                 <?php endif; ?>
-            </div>
-            <div class="text-center mt-10"> <!-- Margin top -->
-                <a href="/news-archive.php" class="btn btn-secondary"><i class="far fa-newspaper"></i>View News Archive</a> <!-- Secondary button -->
-            </div>
-        </div>
-    </section>
-
-    <!-- Gallery Section - Adapting E-Waste section/item style -->
-    <section id="gallery-section" class="section-padding bg-white"> <!-- White background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-            <h2 class="section-title">Glimpses of Our Work</h2>
-            <?php if (!empty($gallery_images)): ?>
-                <div class="gallery grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-12"> <!-- Gap matching E-Waste -->
-                    <?php foreach ($gallery_images as $index => $image): ?>
-                    <a href="<?= htmlspecialchars($image['src']) ?>" class="gallery-item block aspect-video rounded-lg overflow-hidden shadow-md group animate-on-scroll slide-up animation-delay-<?= ($index * 50) ?> transition-all duration-300 hover:shadow-xl hover:scale-105"> <!-- Item style, animation -->
-                         <img src="<?= htmlspecialchars($image['src']) ?>" alt="<?= htmlspecialchars($image['alt']) ?>" loading="lazy" class="w-full h-full object-cover transition-all duration-300 ease-in-out group-hover:scale-105"> <!-- Simple scale hover -->
-                     </a>
-                    <?php endforeach; ?>
-                </div>
-                <p class="text-center mt-6 text-neutral italic text-sm">Click images to view larger.</p> <!-- Neutral italic text -->
-            <?php else: ?>
-                 <p class="text-center text-neutral">Gallery coming soon.</p> <!-- Neutral text -->
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <!-- Associates Section - Adapting E-Waste section/item style -->
-    <section id="associates" class="section-padding bg-neutral-light"> <!-- Neutral background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-            <h2 class="section-title">Our Valued Associates & Partners</h2>
-             <p class="text-center max-w-3xl mx-auto text-lg text-neutral mb-12">Collaboration amplifies impact. We value the support of these esteemed organizations.</p> <!-- Neutral text -->
-             <div class="flex flex-wrap justify-center items-center gap-x-10 md:gap-x-16 gap-y-10"> <!-- Gap matching E-Waste -->
-                <?php foreach ($associates as $index => $associate): ?>
-                 <div class="associate-logo text-center group transform transition duration-300 hover:scale-110 animate-on-scroll slide-up animation-delay-<?= ($index * 50) ?>"> <!-- Item style, animation -->
-                    <img src="<?= htmlspecialchars($associate['img']) ?>" alt="<?= htmlspecialchars($associate['name']) ?> Logo" class="max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100"> <!-- E-Waste logo style -->
-                    <p class="text-xs font-medium text-neutral group-hover:text-primary transition-colors"><?= htmlspecialchars($associate['name']) ?></p> <!-- Neutral text, primary hover -->
-                 </div>
-                 <?php endforeach; ?>
-            </div>
-        </div>
-    </section>
-
-     <!-- Donation CTA Section - Adapting E-Waste animated gradient style -->
-     <section id="donate-section" class="section-padding text-center relative overflow-hidden animated-gradient-primary">
-         <!-- Darkening Overlay not strictly needed with animated gradient background, but kept for visual effect -->
-         <div class="absolute inset-0 bg-black/30 mix-blend-multiply z-0"></div>
-         <div class="container mx-auto relative z-10">
-             <i class="fas fa-donate text-4xl text-white bg-accent p-4 rounded-full shadow-md mb-6 inline-block animate-pulse-glow"></i> <!-- Accent background icon, E-Waste animation -->
-             <h2 class="section-title !text-white">Support Our Initiatives</h2> <!-- White title -->
-            <p class="text-gray-200 text-base md:text-lg mb-6">Your contribution fuels our mission in health, education, and environment within Jalandhar.</p> <!-- Light gray text -->
-            <p class="text-gray-200 bg-black/20 inline-block px-4 py-1.5 rounded-full text-sm font-semibold mb-8 backdrop-blur-sm border border-white/20">Donations Tax Exempt under Sec 80G.</p> <!-- Light background text -->
-            <div class="mt-6 space-y-4 sm:space-y-0 sm:space-x-6 flex flex-wrap justify-center items-center gap-4"> <!-- Gap matching E-Waste -->
-                 <a href="#contact" class="btn btn-secondary"><i class="fas fa-info-circle"></i> Donation Inquiries</a> <!-- Secondary button -->
-                 <button type="button" class="btn btn-outline !border-white !text-white hover:!bg-white hover:!text-primary" data-modal-target="bank-details-modal"><i class="fas fa-university"></i>View Bank Details</button> <!-- White outline, primary text hover -->
-            </div>
-        </div>
-     </section>
-
-    <!-- Contact Section - Adapting E-Waste section/form style -->
-     <section id="contact" class="section-padding bg-white"> <!-- White background -->
-        <div class="container mx-auto animate-on-scroll slide-up"> <!-- Use E-Waste animation -->
-             <h2 class="section-title">Connect With Us</h2>
-             <p class="text-center max-w-3xl mx-auto text-lg text-neutral mb-12">Questions, suggestions, partnerships, or just want to learn more? We're here to connect.</p> <!-- Neutral text -->
-             <div class="grid lg:grid-cols-5 gap-8 lg:gap-12 items-start"> <!-- Gap matching E-Waste -->
-                 <!-- Contact Details -->
-                 <div class="lg:col-span-2 animate-on-scroll slide-up animation-delay-100"> <!-- Use E-Waste animation -->
-                     <h3>Contact Information</h3> <!-- H3 base style -->
-                     <address class="contact-info space-y-6 text-neutral text-base mb-10"> <!-- Neutral text -->
-                        <div class="contact-info-item"><i class="fas fa-map-marker-alt"></i><div><span>Our Office:</span> 36 New Vivekanand Park, Maqsudan,<br>Jalandhar, Punjab - 144008</div></div>
-                        <div class="contact-info-item"><i class="fas fa-phone-alt"></i><div><span>Phone Lines:</span> <a href="tel:+911812672784">181-267-2784</a><br><a href="tel:+919855614230">98556-14230</a></div></div>
-                        <div class="contact-info-item"><i class="fas fa-envelope"></i><div><span>Email Us:</span> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></div></div>
-                     </address>
-                    <div class="mb-8 pt-6 border-t border-gray-200"> <!-- Border top -->
-                        <h4>Follow Our Journey</h4> <!-- H4 base style -->
-                        <div class="flex justify-center lg:justify-start space-x-5 social-icons mt-4">
-                            <!-- Social Icons HTML here -->
-                            <!-- Example: <a href="#" class="text-gray-600 hover:text-primary text-xl transition-colors"><i class="fab fa-facebook-f"></i></a> -->
-                        </div>
-                    </div>
-                     <div class="mb-8 pt-6 border-t border-gray-200"> <!-- Border top -->
-                         <h4>Visit Us</h4> <!-- H4 base style -->
-                         <!-- Placeholder Map -->
-                         <div id="contact-map" class="h-[300px] w-full rounded-lg shadow-md border border-gray-300 mt-4 z-0">
-                            <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3410.489041988969!2d75.59636197570526!3d31.339703354305917!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5a4b351b651b%3A0x98ac38930b192e0f!2sPahal%20NGO!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-gray-300"></iframe>
-                         </div>
-                     </div>
-                     <div class="registration-info bg-neutral-light p-4 rounded-md border border-gray-200 text-xs text-neutral mt-8 shadow-inner"> <!-- Info box style -->
-                         <h4 class="text-primary-dark text-sm font-semibold mb-2 !mt-0">Registration</h4> <!-- Primary-dark heading -->
-                         <p>Registered under: Registrar of Firms & Societies, Punjab</p>
-                         <p>Reg No: 737</p>
-                         <p>Tax Exemptions: 80G & 12A Certified</p>
-                     </div>
-                 </div>
-                <!-- Contact Form - Adapting E-Waste form section style -->
-                <div class="lg:col-span-3 form-section max-w-xl mx-auto lg:mx-0 animate-on-scroll slide-up animation-delay-200"> <!-- Use E-Waste form section, animation -->
-                    <h3 class="text-2xl mb-6 text-primary font-semibold text-center lg:text-left">Send Us a Message</h3> <!-- Primary heading -->
-                    <?= get_form_status_html('contact_form') ?>
-                    <form id="contact-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#contact" method="POST" class="space-y-6">
-                        <!-- Hidden fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
-                        <input type="hidden" name="form_id" value="contact_form">
-                        <div class="honeypot-field" aria-hidden="true">
-                             <label for="website_url_main">Keep This Blank</label>
-                             <input type="text" id="website_url_main" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
-                        </div>
-                        <!-- Form Fields -->
-                        <div>
-                             <label for="contact_name" class="required">Name</label>
-                             <input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" aria-required="true" <?= get_aria_describedby('contact_form', 'name') ?>>
-                             <?= get_field_error_html('contact_form', 'name') ?>
-                         </div>
-                        <div>
-                             <label for="contact_email" class="required">Email</label>
-                             <input type="email" id="contact_email" name="email" required value="<?= $contact_form_email_value ?>" class="<?= get_field_error_class('contact_form', 'email') ?>" placeholder="e.g., jane.doe@example.com" aria-required="true" <?= get_aria_describedby('contact_form', 'email') ?>>
-                             <?= get_field_error_html('contact_form', 'email') ?>
-                         </div>
-                        <div>
-                             <label for="contact_message" class="required">Message</label>
-                             <textarea id="contact_message" name="message" rows="5" required class="<?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your thoughts..." aria-required="true" <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea>
-                             <?= get_field_error_html('contact_form', 'message') ?>
-                         </div>
-                        <div class="pt-4 text-center lg:text-left"> <!-- Button alignment -->
-                             <button type="submit" class="btn btn-primary w-full sm:w-auto" id="contact-submit-button"> <!-- Primary button -->
-                                 <span class="spinner hidden mr-2"></span>
-                                 <span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Send Message</span>
-                             </button>
-                         </div>
-                    </form>
-                 </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Donation Modal - Adapting E-Waste modal style -->
-     <div id="bank-details-modal" class="modal-container" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      <div class="modal-box">
-         <button type="button" class="close-button" aria-label="Close modal" data-modal-close="bank-details-modal"><i class="fas fa-times fa-lg"></i></button>
-         <h3 id="modal-title">Bank Transfer Details</h3> <!-- Primary modal title -->
-        <p class="text-neutral text-base mb-4">Use the following details for direct bank transfers. Mention "Donation" in the description.</p> <!-- Neutral text -->
-         <div class="modal-content-box"> <!-- Info box style -->
-            <p><strong>Account Name:</strong> PAHAL (Regd.)</p> <!-- Primary-dark strong text -->
-            <p><strong>Account Number:</strong> <?= htmlspecialchars($bank_details['account_number']) ?></p> <!-- REPLACE -->
-             <p><strong>Bank Name:</strong> <?= htmlspecialchars($bank_details['bank_name']) ?></p> <!-- REPLACE -->
-             <p><strong>Branch:</strong> <?= htmlspecialchars($bank_details['branch']) ?></p> <!-- REPLACE -->
-             <p><strong>IFSC Code:</strong> <?= htmlspecialchars($bank_details['ifsc_code']) ?></p> <!-- REPLACE -->
-        </div>
-        <p class="modal-footer-note">For queries or receipts, contact us. Thank you!</p> <!-- Neutral italic text -->
-      </div>
-    </div>
-
-</main>
-
-<!-- Footer - Matching E-Waste style -->
-<footer class="bg-primary-dark text-gray-300 pt-12 pb-8 mt-12">
-    <div class="container mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8 text-center md:text-left"> <!-- Gap matching E-Waste -->
-            <!-- Footer About -->
-            <div class="logo-col"> <!-- Alignment helper -->
-                <h4 class="footer-heading">About PAHAL</h4> <!-- Heading style -->
-                <a href="#hero" class="inline-block mb-3"><img src="icon.webp" alt="PAHAL Icon" class="w-14 h-14 rounded-full bg-white p-1 shadow-md mx-auto md:mx-0"></a> <!-- Logo image style -->
-                <p class="footer-text">Jalandhar NGO fostering holistic growth & community service.</p> <!-- Text style -->
-                <p class="text-xs text-gray-400">Reg No: 737 | 80G & 12A</p>
-                 <div class="social-icons-container mt-4 flex justify-center md:justify-start space-x-4"> <!-- Social icons container -->
-                     <a href="https://www.instagram.com/pahal.ngo/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram" class="footer-social-icon hover:text-[#E1306C]"><i class="fab fa-instagram"></i></a>
-                     <a href="https://www.facebook.com/pahal.ngo/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook" class="footer-social-icon hover:text-[#1877F2]"><i class="fab fa-facebook-f"></i></a>
-                     <a href="https://twitter.com/pahal_ngo" target="_blank" rel="noopener noreferrer" aria-label="Twitter" title="Twitter" class="footer-social-icon hover:text-[#1DA1F2]"><i class="fab fa-twitter"></i></a>
-                     <a href="https://www.linkedin.com/company/pahal-ngo/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn" class="footer-social-icon hover:text-[#0A66C2]"><i class="fab fa-linkedin-in"></i></a>
-                 </div>
-            </div>
-             <!-- Footer Quick Links -->
-             <div>
-                 <h4 class="footer-heading">Explore</h4> <!-- Heading style -->
-                 <ul class="footer-links space-y-1.5 text-sm pl-0 columns-2 md:columns-1"> <!-- List style -->
-                     <li><a href="#profile"><i class="fas fa-chevron-right"></i>Profile</a></li> <!-- Link style -->
-                     <li><a href="#objectives"><i class="fas fa-chevron-right"></i>Objectives</a></li>
-                     <li><a href="#areas-focus"><i class="fas fa-chevron-right"></i>Focus Areas</a></li>
-                     <li><a href="#news-section"><i class="fas fa-chevron-right"></i>News</a></li>
-                     <li><a href="blood-donation.php"><i class="fas fa-chevron-right"></i>Blood Drive</a></li>
-                     <li><a href="e-waste.php"><i class="fas fa-chevron-right"></i>E-Waste</a></li>
-                     <li><a href="#volunteer-section"><i class="fas fa-chevron-right"></i>Volunteer</a></li>
-                     <li><a href="#donate-section"><i class="fas fa-chevron-right"></i>Donate</a></li>
-                     <li><a href="#contact"><i class="fas fa-chevron-right"></i>Contact</a></li>
-                     <li><a href="/privacy-policy.php"><i class="fas fa-chevron-right"></i>Privacy</a></li>
-                 </ul>
-             </div>
-             <!-- Footer Contact -->
-             <div>
-                 <h4 class="footer-heading">Reach Us</h4> <!-- Heading style -->
-                 <address class="text-gray-300 text-sm"> <!-- Address text style -->
-                     <p><i class="fas fa-map-marker-alt"></i> 36 New Vivekanand Park, Maqsudan, Jalandhar, Punjab - 144008</p> <!-- Item style -->
-                     <p><i class="fas fa-phone-alt"></i> <a href="tel:+911812672784">181-267-2784</a></p> <!-- Link style -->
-                     <p><i class="fas fa-mobile-alt"></i> <a href="tel:+919855614230">98556-14230</a></p>
-                     <p><i class="fas fa-envelope"></i> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></p>
-                 </address>
-             </div>
-             <!-- Footer Inspiration -->
-             <div class="footer-quote"> <!-- Quote container -->
-                  <h4 class="footer-heading">Inspiration</h4> <!-- Heading style -->
-                 <blockquote>"The best way to find yourself is to lose yourself in the service of others."<cite>- Mahatma Gandhi</cite></blockquote> <!-- Quote style -->
-             </div>
-        </div>
-        <!-- Footer Bottom -->
-        <div class="footer-bottom"><p>© <?= $current_year ?> PAHAL (Regd.), Jalandhar. All Rights Reserved.</p></div> <!-- Bottom bar -->
-    </div>
-</footer>
-
-<!-- Back to Top Button - Matching E-Waste button concept -->
-<button id="back-to-top" aria-label="Back to Top" title="Back to Top">
-   <i class="fas fa-arrow-up"></i> <!-- Icon -->
-</button>
-
-<!-- Simple Lightbox JS (Keep if gallery used) -->
+    <!-- Simple Lightbox JS (Keep if gallery used) -->
 <script src="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.js"></script>
 
 <!-- Main JavaScript -->
