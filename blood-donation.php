@@ -1133,7 +1133,7 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
                              <div>
                                  <label for="donor_dob" class="required">Date of Birth</label>
                                  <input type="date" id="donor_dob" name="donor_dob" required value="<?= $donor_reg_dob_value ?>" aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_dob') ?>" max="<?= date('Y-m-d') ?>" <?= get_aria_describedby('donor_registration_form', 'donor_dob') ?>>
-                                 <p class="text-xs text-gray-500 mt-1" id="donor_dob_hint">YYYY-MM-DD. Must be 18-65 yrs.</p> {/* Kept hint text, removed JS update logic */}
+                                 <p class="text-xs text-gray-500 mt-1" id="donor_dob_hint">YYYY-MM-DD. Must be 18-65 yrs.</p> 
                                  <?= get_field_error_html('donor_registration_form', 'donor_dob') ?>
                             </div>
                          </div>
@@ -1177,7 +1177,7 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
                          <div class="pt-5 text-center"> <!-- E-Waste button alignment -->
                              <!-- Button class using E-Waste definitions -->
                              <button type="submit" class="btn btn-secondary w-full sm:w-auto">
-                                 <span class="spinner hidden mr-2"></span> {/* Spinner added */}
+                                 <span class="spinner hidden mr-2"></span> 
                                  <span class="button-text flex items-center justify-center"><i class="fas fa-check-circle mr-2"></i>Register Now</span>
                              </button>
                          </div>
@@ -1270,7 +1270,7 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
                          <div class="pt-5 text-center"> <!-- E-Waste button alignment -->
                              <!-- Button class using E-Waste definitions -->
                              <button type="submit" class="btn btn-accent w-full sm:w-auto">
-                                 <span class="spinner hidden mr-2"></span> {/* Spinner added */}
+                                 <span class="spinner hidden mr-2"></span> 
                                  <span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Submit Request</span>
                              </button>
                          </div>
@@ -1343,9 +1343,9 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
                 <h2 class="section-title !mt-0">Questions? Contact Our Blood Program Team</h2>
                  <p class="text-lg mb-8 text-neutral">For specific questions about the blood donation program, eligibility, upcoming camps, or potential partnerships, please reach out directly:</p>
                 <div class="contact-block inline-block text-left space-y-4 max-w-md mx-auto animate-slide-up"> <!-- Simple div with spacing, animation -->
-                    <p><i class="fas fa-user-tie"></i> <strong>Coordinator:</strong> [Coordinator Name]</p> {/* CHANGE */}
+                    <p><i class="fas fa-user-tie"></i> <strong>Coordinator:</strong>Mr. Mohit Rubel</p> 
                     <p><i class="fas fa-phone"></i> <strong>Direct Line:</strong> <a href="tel:+919855614230">+91 98556-14230</a></p>
-                    <p><i class="fas fa-envelope"></i> <strong>Email:</strong> <a href="mailto:bloodprogram@your-pahal-domain.com?subject=Blood%20Donation%20Inquiry" class="break-all">bloodprogram@your-pahal-domain.com</a></p> {/* CHANGE */}
+                    <p><i class="fas fa-envelope"></i> <strong>Email:</strong> <a href="mailto:engage@pahal-ngo.org?subject=Blood%20Donation%20Inquiry" class="break-all">engage@pahal-ngo.org</a></p> 
                 </div>
                 <div class="mt-12 animate-slide-up animation-delay-200">
                     <a href="index.php#contact" class="btn-outline"><i class="fas fa-address-book mr-2"></i>General PAHAL Contact Info</a>
