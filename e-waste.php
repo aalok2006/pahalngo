@@ -797,7 +797,7 @@ $neutral_medium_color = '#6B7280';
             <div class="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-8 mb-10 text-lg">
                <div class="flex items-center">
                    <i class="fas fa-phone-alt text-primary text-2xl mr-3"></i>
-                   <a href="tel:+916239366376" class="text-neutral-dark hover:text-primary font-semibold">+91 6239366376</a> <span class="text-sm ml-1 text-neutral">Mr Bipan Suman(E-Waste Project Manager)</span>
+                   <a href="tel:+916239366376" class="text-neutral-dark hover:text-primary font-semibold">+91 6239366376</a> <span class="text-sm ml-1 text-neutral">Mr Bipan Suman(Project Manager)</span>
                </div>
                 <div class="flex items-center">
                    <i class="fas fa-envelope text-primary text-2xl mr-3"></i>
