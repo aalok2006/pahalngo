@@ -1,9 +1,9 @@
 <?php
 // ========================================================================
-// PAHAL NGO Website - Main Page & Contact/Volunteer Forms
-// Version: 4.1 (UI Refactored to match E-Waste/Blood Page Styling)
-// Features: Tailwind UI (E-Waste/Blood Style), Responsive Design, Animations
-// Backend: PHP mail(), CSRF, Honeypot, Logging (Functionality Preserved)
+// PAHAL NGO Website - Blood Donation & Request Page
+// Version: 4.1 (UI Refactored to match E-Waste Page Styling)
+// Features: Tailwind UI (E-Waste Style), Responsive Design, Animations,
+//           PHP mail(), CSRF, Honeypot, Logging (Functionality Preserved)
 // ========================================================================
 
 // Start session for CSRF token
@@ -13,40 +13,31 @@ if (session_status() == PHP_SESSION_NONE) {
 
 // --- Configuration ---
 // CHANGE THESE EMAIL ADDRESSES to the correct recipients for your NGO
-define('RECIPIENT_EMAIL_CONTACT', "contact@your-pahal-domain.com"); // CHANGE ME
-define('RECIPIENT_EMAIL_VOLUNTEER', "volunteer@your-pahal-domain.com"); // CHANGE ME
+define('RECIPIENT_EMAIL_DONOR_REG', "bloodbank@your-pahal-domain.com");         // CHANGE ME
+define('RECIPIENT_EMAIL_BLOOD_REQUEST', "bloodrequests@your-pahal-domain.com"); // CHANGE ME
 
 // CHANGE THESE POTENTIALLY to an email address associated with your domain for better deliverability
 define('SENDER_EMAIL_DEFAULT', 'webmaster@your-pahal-domain.com'); // CHANGE ME (email mails appear FROM)
-define('SENDER_NAME_DEFAULT', 'PAHAL NGO Website');                       // CHANGE ME (name mails appear FROM)
+define('SENDER_NAME_DEFAULT', 'PAHAL NGO Blood Program');                       // CHANGE ME (name mails appear FROM)
 
 // --- Security Settings ---
-define('CSRF_TOKEN_NAME', 'csrf_token'); // Matching other pages for consistency
-define('HONEYPOT_FIELD_NAME', 'website_url'); // Keep unique for this form to distinguish POSTs
-// Note: Original code used website_url for both forms,
-// but the blood page used contact_preference_blood.
-// For consistency WITH THE ORIGINAL index logic, keep one honeypot name,
-// but for safety BETWEEN the two forms, it's better if honeypot names differ.
-// The refactored blood page used two unique names (contact_preference_blood_donor, contact_preference_blood_req)
-// Let's keep the original index name (website_url) but make it unique per form to be safe,
-// matching the blood page's refined approach.
-define('HONEYPOT_FIELD_NAME_CONTACT', 'website_url_contact');
-define('HONEYPOT_FIELD_NAME_VOLUNTEER', 'website_url_volunteer');
-
+define('CSRF_TOKEN_NAME', 'csrf_token');
+// Unique honeypot name, different from ewaste if both pages are on the same domain and share a form processing script
+define('HONEYPOT_FIELD_NAME', 'contact_preference_blood'); // Unique honeypot name
 
 // --- Logging ---
 define('ENABLE_LOGGING', true); // Set to true to log submissions/errors
 $baseDir = __DIR__; // Directory of the current script
 // Ensure logs directory is writable and outside web root if possible, or protected by .htaccess
-define('LOG_FILE_ERROR', $baseDir . '/logs/form_errors.log'); // Shared general form error log file
-define('LOG_FILE_CONTACT', $baseDir . '/logs/contact_submissions.log'); // Path to contact form log file
-define('LOG_FILE_VOLUNTEER', $baseDir . '/logs/volunteer_submissions.log'); // Path to volunteer form log file
+define('LOG_FILE_ERROR', $baseDir . '/logs/form_errors.log'); // Path to general form error log file
+define('LOG_FILE_BLOOD_DONOR', $baseDir . '/logs/blood_donor_regs.log'); // Path to donor registration log file
+define('LOG_FILE_BLOOD_REQUEST', $baseDir . '/logs/blood_requests.log'); // Path to blood request log file
 // --- END CONFIG ---
 
 
 // --- Helper Functions ---
-// Ensure these match the versions in the refactored blood-donation.php
-// (Including logic, class names used in HTML output functions)
+// Using the more robust helper functions from the original Blood Donation code,
+// but adjusting UI-related ones to match E-Waste page's class names.
 
 /**
  * Logs a message to a specified file.
@@ -200,64 +191,64 @@ function validate_data(array $data, array $rules): array {
                     break;
                 case 'minLength':
                     $minLength = (int)($params[0] ?? 0);
-                    if ($value !== null && is_string($value) && mb_strlen((string)$value, 'UTF-8') < $minLength) {
+                    if ($value !== null && mb_strlen((string)$value, 'UTF-8') < $minLength) {
                         $isValid = false;
                         $errorMessage = "{$fieldNameFormatted} must be at least {$minLength} characters.";
                     }
                     break;
                 case 'maxLength':
                     $maxLength = (int)($params[0] ?? 255);
-                    if ($value !== null && is_string($value) && mb_strlen((string)$value, 'UTF-8') > $maxLength) {
+                    if ($value !== null && mb_strlen((string)$value, 'UTF-8') > $maxLength) {
                         $isValid = false;
                         $errorMessage = "{$fieldNameFormatted} must not exceed {$maxLength} characters.";
                     }
                     break;
                 case 'alpha_space':
                      // Allow letters and spaces, using Unicode property \p{L} for any letter
-                    if ($value !== null && is_string($value) && !preg_match('/^[\p{L}\s]+$/u', $value)) {
+                    if ($value !== null && !preg_match('/^[\p{L}\s]+$/u', $value)) {
                         $isValid = false;
                         $errorMessage = "{$fieldNameFormatted} must only contain letters and spaces.";
                     }
                     break;
                 case 'phone':
                      // Basic phone number format validation (allows + international, spaces, hyphens, parentheses, extensions)
-                    if ($value !== null && is_string($value) && !preg_match('/^(\+?\d{1,3}[-.\s]?)?\(?\d{3,5}\)?[-.\s]?\d{3}[-.\s]?\d{3,4}(\s*(ext|x|extension)\s*\d+)?$/', $value)) {
+                    if ($value !== null && !preg_match('/^(\+?\d{1,3}[-.\s]?)?\(?\d{3,5}\)?[-.\s]?\d{3}[-.\s]?\d{3,4}(\s*(ext|x|extension)\s*\d+)?$/', $value)) {
                         $isValid = false;
                         $errorMessage = "Please enter a valid phone number format.";
                     }
                     break;
-                case 'date': // Note: Blood page uses date:Y-m-d, this is a generic placeholder
-                     // Need to implement date validation based on specific format if needed, or use a simpler check
+                case 'date':
+                     $format = $params[0] ?? 'Y-m-d'; // Default date format
                      if ($value !== null) {
-                         // Simple check: if the rule requires a specific format like 'date:Y-m-d',
-                         // you'd need a more robust validation here or rely on input type="date"
-                         // For this main page, we don't have date inputs in the forms provided,
-                         // but keeping the case structure if inherited.
-                         // If a date rule is used, copy the logic from blood-donation.php's date check.
-                         log_message("Validation rule 'date' used for field '{$field}' but not fully implemented in validate_data helper.", LOG_FILE_ERROR);
+                         // Attempt to create a date object from the value using the specified format
+                         $d = DateTime::createFromFormat($format, $value);
+                         // Check if the date object was created successfully AND if formatting it back
+                         // matches the original value (prevents invalid dates like Feb 30)
+                         if (!($d && $d->format($format) === $value)) {
+                             $isValid = false;
+                             $errorMessage = "{$fieldNameFormatted} must be a valid date in {$format} format.";
+                         }
                      }
                      break;
-                 case 'integer': // Note: Blood page uses integer validation, this is a placeholder
-                     // If used, copy the logic from blood-donation.php
+                 case 'integer':
+                     // Strict integer validation (filter_var returns false for non-integers, including empty string)
                      if ($value !== null && filter_var($value, FILTER_VALIDATE_INT) === false) {
                          $isValid = false;
                          $errorMessage = "{$fieldNameFormatted} must be a whole number.";
                      }
                      break;
-                 case 'min': // Note: Blood page uses min validation, this is a placeholder
-                 case 'max': // Note: Blood page uses max validation, this is a placeholder
-                     if ($value !== null && is_numeric($value)) {
-                         $floatValue = (float)$value;
-                         if ($rule === 'min' && $floatValue < (float)($params[0] ?? 0)) {
-                              $isValid = false;
-                              $errorMessage = "{$fieldNameFormatted} must be at least " . ($params[0] ?? 0) . ".";
-                         } elseif ($rule === 'max' && $floatValue > (float)($params[0] ?? PHP_FLOAT_MAX)) {
-                              $isValid = false;
-                              $errorMessage = "{$fieldNameFormatted} must be no more than " . ($params[0] ?? PHP_FLOAT_MAX) . ".";
-                         }
-                     } elseif ($value !== null && !is_numeric($value)) {
+                 case 'min':
+                     $minValue = (float)($params[0] ?? 0);
+                     if ($value !== null && is_numeric($value) && (float)$value < $minValue) {
                          $isValid = false;
-                         $errorMessage = "{$fieldNameFormatted} must be a number.";
+                         $errorMessage = "{$fieldNameFormatted} must be at least {$minValue}.";
+                     }
+                     break;
+                 case 'max':
+                     $maxValue = (float)($params[0] ?? PHP_FLOAT_MAX);
+                      if ($value !== null && is_numeric($value) && (float)$value > $maxValue) {
+                         $isValid = false;
+                         $errorMessage = "{$fieldNameFormatted} must be no more than {$maxValue}.";
                      }
                      break;
                  case 'in':
@@ -270,39 +261,18 @@ function validate_data(array $data, array $rules): array {
                  case 'required_without':
                      $otherField = $params[0] ?? null;
                      // Checks if the current field is empty AND the other specified field is also empty
-                     // Trim values for comparison
-                     $currentValueTrimmed = is_string($value) ? trim($value) : ($value === null ? '' : (is_array($value) ? (empty($value) ? '' : 'not-empty') : (string)$value));
-                     $otherValueTrimmed = is_string($data[$otherField] ?? null) ? trim($data[$otherField] ?? '') : (($data[$otherField] ?? null) === null ? '' : (is_array($data[$otherField] ?? null) ? (empty($data[$otherField] ?? null) ? '' : 'not-empty') : (string)($data[$otherField] ?? null)));
-
-                     if ($otherField && $currentValueTrimmed === '' && $otherValueTrimmed === '') {
+                     if ($otherField && ($value === null || trim($value) === '') && empty(trim($data[$otherField] ?? ''))) {
                          $isValid = false;
-                         $errors[$field] = "Either {$fieldNameFormatted} or " . ucfirst(str_replace('_', ' ', $otherField)) . " is required.";
-                         // No need to break here, the error is set, and the outer loop handles breaking.
-                         // This error message logic is slightly different than setting $errorMessage and breaking inside the inner loop,
-                         // but achieves the same for 'required_without'.
+                         $errorMessage = "Either {$fieldNameFormatted} or " . ucfirst(str_replace('_', ' ', $otherField)) . " is required.";
                      }
                      break;
-                 case 'recaptcha': // Placeholder - actual reCAPTCHA v3 validation needs server-side API call
-                     // For this refactor, we'll assume reCAPTCHA validation happens elsewhere or isn't critical
-                     // if this rule was intended but not fully implemented.
-                     // If you add reCAPTCHA, uncomment and complete the logic here.
-                     // Example basic check (DO NOT rely on this for security):
-                      if (in_array('required', $ruleList) && empty($value)) {
-                          $isValid = false; $errors[$field] = "reCAPTCHA verification is required.";
-                      }
-                    log_message("Placeholder reCAPTCHA validation rule triggered for field '{$field}'.", LOG_FILE_ERROR);
-                    break;
-                default:
-                    log_message("Unknown validation rule '{$rule}' for field '{$field}'.", LOG_FILE_ERROR);
-                    break;
-            }
+             }
 
-            // If validation failed for this rule and no error message has been set for this field yet, set it and break from inner loop
-            if (!$isValid && !isset($errors[$field])) {
-                $errors[$field] = $errorMessage;
-                 // Note: required_without sets error directly, so check $errors[$field] status.
-                 if(isset($errors[$field])) break; // Move to the next field after the first validation error
-            }
+             // If validation failed for this rule and no error message has been set for this field yet, set it and break from inner loop
+             if (!$isValid && !isset($errors[$field])) {
+                 $errors[$field] = $errorMessage;
+                 break; // Move to the next field after the first validation error
+             }
          }
      }
      return $errors;
@@ -318,22 +288,20 @@ function validate_data(array $data, array $rules): array {
  * @param string $body Email body (plain text).
  * @param string $replyToEmail Email for Reply-To header.
  * @param string $replyToName Name for Reply-To header.
- * @param string $logContext Prefix for logging messages (e.g., "[Contact Form]").
- * @param string $successLogFile Log file for successful submissions.
- * @param string $errorLogFile Log file for errors.
+ * @param string $logContext Prefix for logging messages (e.g., "[Donor Reg Form]").
  * @return bool True on success, false on failure.
  */
-function send_email(string $to, string $subject, string $body, string $replyToEmail, string $replyToName, string $logContext, string $successLogFile, string $errorLogFile): bool {
+function send_email(string $to, string $subject, string $body, string $replyToEmail, string $replyToName, string $logContext): bool {
     $senderName = SENDER_NAME_DEFAULT;
     $senderEmail = SENDER_EMAIL_DEFAULT;
 
     // Basic validation of recipient and sender emails
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        log_message("{$logContext} Email send failed: Invalid recipient email: {$to}", $errorLogFile);
+        log_message("{$logContext} Email send failed: Invalid recipient email: {$to}", LOG_FILE_ERROR);
         return false;
     }
      if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
-         log_message("{$logContext} Email send failed: Invalid sender email in config: {$senderEmail}", $errorLogFile);
+         log_message("{$logContext} Email send failed: Invalid sender email in config: {$senderEmail}", LOG_FILE_ERROR);
          return false;
      }
 
@@ -351,6 +319,7 @@ function send_email(string $to, string $subject, string $body, string $replyToEm
         // Fallback Reply-To to sender if no valid reply-to is provided
          $replyToHeader = "Reply-To: =?UTF-8?B?".base64_encode($senderName)."?= <{$senderEmail}>\r\n";
     }
+
 
     $headers = $fromHeader . $replyToHeader;
     $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
@@ -370,12 +339,14 @@ function send_email(string $to, string $subject, string $body, string $replyToEm
     $additionalParams = "-f{$senderEmail}";
 
     if (@mail($to, $encodedSubject, $wrapped_body, $headers, $additionalParams)) {
-        log_message("{$logContext} Email successfully submitted via mail() to {$to}. Subject: {$subject}", $successLogFile);
+        // Determine correct log file based on context
+        $logFile = ($logContext === '[Donor Reg Form]') ? LOG_FILE_BLOOD_DONOR : LOG_FILE_BLOOD_REQUEST;
+        log_message("{$logContext} Email successfully submitted via mail() to {$to}. Subject: {$subject}", $logFile);
         return true;
     } else {
         $errorInfo = error_get_last(); // Get the last error if mail() failed
         $errorMsg = "{$logContext} Native mail() Error sending to {$to}. Subject: {$subject}. Server Error: " . ($errorInfo['message'] ?? 'Unknown mail() error. Check server mail config/logs.');
-        log_message($errorMsg, $errorLogFile);
+        log_message($errorMsg, LOG_FILE_ERROR);
         error_log($errorMsg); // Also log error server-side via PHP's default error handling
         return false;
     }
@@ -388,10 +359,10 @@ function send_email(string $to, string $subject, string $body, string $replyToEm
  */
 function get_form_value(string $formId, string $fieldName, string $default = ''): string {
     global $form_submissions;
+    $value = $form_submissions[$formId][$fieldName] ?? $default;
     // Handle arrays/non-scalar values gracefully if they somehow end up here
-     $value = $form_submissions[$formId][$fieldName] ?? $default;
-     if (is_array($value) || is_object($value)) {
-         log_message("Attempted to get non-scalar value for form '{$formId}', field '{$fieldName}' using get_form_value.", LOG_FILE_ERROR);
+    if (is_array($value) || is_object($value)) {
+         log_message("Attempted to get non-scalar value for form '{$formId}', field '{$fieldName}'.", LOG_FILE_ERROR);
         return $default; // Return default for non-scalar values
     }
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
@@ -445,10 +416,9 @@ function get_field_error_html(string $formId, string $fieldName): string {
  */
 function get_field_error_class(string $formId, string $fieldName): string {
      global $form_errors;
-     // Use the utility class defined in E-Waste components layer for errors, and default border color
-     // Check for the presence of errors for this specific field
+     // Use the utility class defined in E-Waste CSS for errors, and default border color
      return isset($form_errors[$formId][$fieldName])
-         ? 'form-input-error' // Class defined in E-Waste components layer
+         ? 'form-input-error' // Class defined in E-Waste utilities/components layer
          : 'border-gray-300'; // Default border class from E-Waste base styles
 }
 
@@ -468,40 +438,40 @@ function get_aria_describedby(string $formId, string $fieldName): string {
 
 // --- Initialize Page Variables ---
 $current_year = date('Y');
-$page_title = "PAHAL NGO Jalandhar | Empowering Communities, Inspiring Change";
-$page_description = "'PAHAL' is a leading volunteer-driven youth NGO in Jalandhar, Punjab, fostering holistic development through impactful initiatives in health, education, environment, and communication skills.";
-$page_keywords = "PAHAL, NGO, Jalandhar, Punjab, volunteer, youth organization, social work, community service, health camps, blood donation, education, environment, e-waste, communication skills, personality development, non-profit";
+$page_title = "Donate Blood & Request Assistance | PAHAL NGO Jalandhar";
+$page_description = "Register as a blood donor, find donation camps, or request urgent blood assistance through PAHAL NGO in Jalandhar. Your donation saves lives.";
+$page_keywords = "pahal ngo blood donation, jalandhar blood bank, donate blood jalandhar, blood request jalandhar, blood camp schedule, save life, volunteer donor";
 
 // --- Initialize Form State Variables ---
-// Initialize keys for expected forms to avoid warnings before POST processing
-$form_submissions = ['contact_form' => [], 'volunteer_form' => []];
-$form_messages = ['contact_form' => [], 'volunteer_form' => []];
-$form_errors = ['contact_form' => [], 'volunteer_form' => []];
-
+$form_submissions = []; $form_messages = []; $form_errors = [];
 $csrf_token = generate_csrf_token(); // Generate initial token or retrieve existing
 
-// --- Dummy Data (Keep Existing) ---
-// Replace with real data source later
-$news_items = [
-    ['date' => '2023-10-27', 'title' => 'Successful Blood Donation Camp', 'excerpt' => 'PAHAL organized a high-impact blood donation camp, contributing significantly to local blood banks. Community support was overwhelming...', 'link' => 'blood-donation.php', 'image' => 'https://images.unsplash.com/photo-1628348068343-c6a882fc36d4?auto=format&fit=crop&w=400&q=80'],
-    ['date' => '2023-10-20', 'title' => 'E-Waste Collection Drive Announced', 'excerpt' => 'Join us on [Date - TBD] for our next e-waste collection drive to promote responsible electronic waste disposal...', 'link' => 'e-waste.php', 'image' => 'https://images.unsplash.com/photo-1591797045312-105fe9f03a47?auto=format&fit=crop&w=400&q=80'],
-    ['date' => '2023-10-15', 'title' => 'Personality Development Workshop', 'excerpt' => 'A free workshop held for local youth focusing on communication skills, confidence building, and public speaking...', 'link' => '#', 'image' => 'https://images.unsplash.com/photo-1524758631624-cd28ec2da04e?auto=format&fit=crop&w=400&q=80'],
+// --- Blood Donation Specific Data ---
+$upcoming_camps = [
+    // Example Camp Data (replace with actual data)
+    ['id' => 1, 'date' => new DateTime('2024-11-15'), 'time' => '10:00 AM - 3:00 PM', 'location' => 'PAHAL NGO Main Office, Maqsudan, Jalandhar', 'organizer' => 'PAHAL & Local Hospital Partners', 'notes' => 'Walk-ins welcome, pre-registration encouraged. Refreshments provided.' ],
+    ['id' => 2, 'date' => new DateTime('2024-12-10'), 'time' => '9:00 AM - 1:00 PM', 'location' => 'Community Centre, Model Town, Jalandhar', 'organizer' => 'PAHAL Youth Wing', 'notes' => 'Special drive focusing on Thalassemia awareness.' ],
+     ['id' => 3, 'date' => new DateTime('2025-01-26'), 'time' => '10:00 AM - 2:00 PM', 'location' => 'Guru Gobind Singh Stadium, Jalandhar', 'organizer' => 'PAHAL & District Administration', 'notes' => 'Republic Day Blood Donation Camp.' ],
+    // Add more camps here...
 ];
-$gallery_images = [
-    ['src' => 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80', 'alt' => 'PAHAL Volunteers working with kids'],
-    ['src' => 'https://images.unsplash.com/photo-1591083592626-6e3a6f51475c?auto=format&fit=crop&w=800&q=80', 'alt' => 'Blood donation camp in progress'],
-    ['src' => 'https://images.unsplash.com/photo-1526304640581-d35d4846aa08?auto=format&fit=crop&w=800&q=80', 'alt' => 'Group photo of volunteers'],
-    ['src' => 'https://images.unsplash.com/photo-1518057912440-d21745117353?auto=format&fit=crop&w=800&q=80', 'alt' => 'Environmental cleanup drive'],
-    ['src' => 'https://images.unsplash.com/photo-1560523183-8703230037ca?auto=format&fit=crop&w=800&q=80', 'alt' => 'Communication skills workshop'],
-    ['src' => 'https://images.unsplash.com/photo-1488521787994-d263e6e0fdae?auto=format&fit=crop&w=800&q=80', 'alt' => 'Health checkup camp'],
-];
-$associates = [
-    ['name' => 'Local Hospital', 'img' => 'https://via.placeholder.com/150x80/D1D5DB/4B5563?text=Hospital+Partner'],
-    ['name' => 'Educational Institute', 'img' => 'https://via.placeholder.com/150x80/D1D5DB/4B5563?text=Edu.+Partner'],
-    ['name' => 'Environmental Agency', 'img' => 'https://via.placeholder.com/150x80/D1D5DB/4B5563?text=Env.+Partner'],
-    ['name' => 'Community Center', 'img' => 'https://via.placeholder.com/150x80/D1D5DB/4B5563?text=Community+Partner'],
-    ['name' => 'Corporate Sponsor', 'img' => 'https://via.placeholder.com/150x80/D1D5DB/4B5563?text=Corporate'],
-    ['name' => 'Media Partner', 'img' => 'https://via.placeholder.com/150x80/D1D5DB/4B5563?text=Media+Partner'],
+
+// Filter out past camps and sort by date
+$today = new DateTime('today midnight'); // Ensure comparison starts from the beginning of today
+$upcoming_camps = array_filter($upcoming_camps, fn($camp) => $camp['date'] >= $today);
+usort($upcoming_camps, fn($a, $b) => $a['date'] <=> $b['date']); // Sort upcoming camps by date
+
+$blood_types = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']; // Standard blood types
+
+$blood_facts = [ // Facts for the "Did You Know" section
+    "One donation can save up to three lives.",
+    "Blood cannot be manufactured – it only comes from generous donors.",
+    "About 1 in 7 people entering a hospital need blood.",
+    "The shelf life of donated blood is typically 42 days.",
+    "Type O negative blood is the universal red cell donor type.",
+    "Type AB positive plasma is the universal plasma donor type.",
+    "Regular blood donation may help keep iron levels in check.",
+    "Your body replaces the blood volume within 24-48 hours.",
+    "Donating blood can help identify potential health problems.",
 ];
 
 
@@ -510,18 +480,26 @@ $associates = [
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $submitted_form_id = sanitize_string($_POST['form_id'] ?? ''); // Sanitize form ID
     $submitted_token = $_POST[CSRF_TOKEN_NAME] ?? null;
-    $logContext = "[Index Page POST]"; // Default context
+    $honeypot_filled = !empty($_POST[HONEYPOT_FIELD_NAME]);
+    $logContext = "[Blood Page POST]"; // Default context
 
     // --- Security Checks ---
-    // CSRF validation must happen regardless of which form ID is provided
+    if ($honeypot_filled) {
+        log_message("{$logContext} Honeypot triggered. Form ID: {$submitted_form_id}.", LOG_FILE_ERROR);
+        // Silently fail or redirect to a thank you page (acting like success)
+        $_SESSION['form_messages'][$submitted_form_id] = ['type' => 'success', 'text' => 'Thank you for your submission!']; // Generic message
+        // Use 303 See Other for PRG pattern compliance
+        header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . "#" . urlencode($submitted_form_id), true, 303);
+        exit;
+    }
+    // validate_csrf_token unsets the token on comparison attempt (success or failure)
     if (!validate_csrf_token($submitted_token)) {
         log_message("{$logContext} Invalid CSRF token. Form ID: {$submitted_form_id}.", LOG_FILE_ERROR);
         // Set a general error message or specific form message
         // Use a default form ID if the submitted one is missing/invalid to ensure message is displayed
         $displayFormId = !empty($submitted_form_id) ? $submitted_form_id : 'general_error';
-        // Use a generic error message that applies to any form or the page itself
         $_SESSION['form_messages'][$displayFormId] = ['type' => 'error', 'text' => 'Security token invalid or expired. Please refresh the page and try submitting the form again.'];
-        header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']), true, 303); // Redirect back to page
+        header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . "#" . urlencode($submitted_formId), true, 303); // Redirect back to page, potentially to the form section
         exit;
     }
      // Regenerate token *after* successful validation check for the *next* request
@@ -529,187 +507,210 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
      $csrf_token = generate_csrf_token();
 
 
-    // --- Process Contact Form ---
-    if ($submitted_form_id === 'contact_form') {
-        $form_id = 'contact_form';
-        $logContext = "[Contact Form]";
-        $honeypot_filled = !empty($_POST[HONEYPOT_FIELD_NAME_CONTACT]); // Use unique honeypot name for contact form
+    // --- Process Donor Registration Form ---
+    if ($submitted_form_id === 'donor_registration_form') {
+        $form_id = 'donor_registration_form';
+        $logContext = "[Donor Reg Form]";
+        // Sanitize Data
+        $donor_name = sanitize_string($_POST['donor_name'] ?? '');
+        $donor_email = sanitize_email($_POST['donor_email'] ?? '');
+        $donor_phone = sanitize_string($_POST['donor_phone'] ?? '');
+        $donor_blood_group = sanitize_string($_POST['donor_blood_group'] ?? '');
+        $donor_dob = sanitize_string($_POST['donor_dob'] ?? '');
+        $donor_location = sanitize_string($_POST['donor_location'] ?? '');
+        $donor_consent = isset($_POST['donor_consent']) && $_POST['donor_consent'] === 'yes';
 
-        if ($honeypot_filled) {
-            log_message("{$logContext} Honeypot triggered. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
-            // Silently fail or act like success to avoid signaling bot detection
-            $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => 'Thank you for your message!']; // Generic message
-            // Clear submitted data
-            $submitted_data = []; // Treat as if empty valid submission
-        } else {
-             // Sanitize Contact Form Data
-             $contact_name = sanitize_string($_POST['name'] ?? '');
-             $contact_email = sanitize_email($_POST['email'] ?? '');
-             $contact_message = sanitize_string($_POST['message'] ?? '');
-             // Add reCAPTCHA response if applicable
-             // $contact_recaptcha_response = sanitize_string($_POST['g-recaptcha-response'] ?? '');
+        // Store submitted data before validation for repopulation on error
+        $submitted_data = [
+            'donor_name' => $donor_name, 'donor_email' => $donor_email, 'donor_phone' => $donor_phone,
+            'donor_blood_group' => $donor_blood_group, 'donor_dob' => $donor_dob,
+            'donor_location' => $donor_location, 'donor_consent' => $donor_consent ? 'yes' : ''
+        ];
 
-             // Store submitted data before validation for repopulation on error
-             $submitted_data = [
-                 'name' => $contact_name,
-                 'email' => $contact_email,
-                 'message' => $contact_message,
-                 // 'g-recaptcha-response' => $contact_recaptcha_response,
-             ];
+        // Validation Rules
+        $rules = [
+            'donor_name' => 'required|alpha_space|minLength:2|maxLength:100',
+            'donor_email' => 'required|email|maxLength:255',
+            'donor_phone' => 'required|phone|maxLength:20',
+            'donor_blood_group' => 'required|in:'.implode(',', $blood_types),
+            'donor_dob' => 'required|date:Y-m-d', // Validate date format first
+            'donor_location' => 'required|maxLength:150',
+        ];
+        $validation_errors = validate_data($submitted_data, $rules);
 
-             // Validation Rules for Contact Form
-             $rules = [
-                 'name' => 'required|alpha_space|minLength:2|maxLength:100',
-                 'email' => 'required|email|maxLength:255',
-                 'message' => 'required|minLength:10|maxLength:2000',
-                 // Add reCAPTCHA rule here if implemented and required
-                 // 'g-recaptcha-response' => 'required|recaptcha',
-             ];
-
-             $validation_errors = validate_data($submitted_data, $rules);
-             $form_errors[$form_id] = $validation_errors;
-
-             if (empty($validation_errors)) {
-                 // Proceed with sending email if validation passes
-                 $to = RECIPIENT_EMAIL_CONTACT;
-                 $subject = "Website Contact Message from " . $contact_name;
-                 $body = "Name: " . $contact_name . "\n";
-                 $body .= "Email: " . $contact_email . "\n\n";
-                 $body .= "Message:\n" . $contact_message . "\n\n";
-                 $body .= "---\nIP: " . ($_SERVER['REMOTE_ADDR'] ?? 'N/A') . "\n";
-                 $body .= "Time: " . date('Y-m-d H:i:s T') . "\n";
-
-                 if (send_email($to, $subject, $body, $contact_email, $contact_name, $logContext, LOG_FILE_CONTACT, LOG_FILE_ERROR)) {
-                     $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you, {$contact_name}! Your message has been sent successfully. We will get back to you shortly."];
-                     // Clear submitted data on success
-                     unset($submitted_data); // This prevents it from being stored in session later
+        // Custom Age & Consent Validation (run after basic validation)
+        $age = null;
+        // Only perform age check if DOB passed initial date format validation
+        if (!isset($validation_errors['donor_dob']) && !empty($donor_dob)) {
+            try {
+                $birthDate = new DateTime($donor_dob);
+                $today = new DateTime();
+                // Check if DOB is not in the future
+                 if ($birthDate > $today) {
+                     $validation_errors['donor_dob'] = "Date of birth cannot be in the future.";
                  } else {
-                     $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Sorry, there was an issue sending your message. Please try again later or contact us directly."];
-                     // Error is logged within send_email() helper
+                     // Calculate age and check range (18-65)
+                     $age = $today->diff($birthDate)->y;
+                     if ($age < 18 || $age > 65) {
+                         $validation_errors['donor_dob'] = "Donors must be between 18 and 65 years old. Your age: {$age}.";
+                     }
                  }
-             } else {
-                 // Validation errors occurred
-                 $errorCount = count($validation_errors);
-                 $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the {$errorCount} error(s) below to send your message."];
-                 log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors), LOG_FILE_ERROR);
-                 // Submitted data is kept automatically by the POST handling logic below
-             }
-         }
-         $_SESSION['scroll_to'] = '#contact'; // Set scroll target
-
-    } // --- End Contact Form Processing ---
-
-    // --- Process Volunteer Form ---
-    elseif ($submitted_form_id === 'volunteer_form') {
-        $form_id = 'volunteer_form';
-        $logContext = "[Volunteer Form]";
-        $honeypot_filled = !empty($_POST[HONEYPOT_FIELD_NAME_VOLUNTEER]); // Use unique honeypot name for volunteer form
-
-        if ($honeypot_filled) {
-             log_message("{$logContext} Honeypot triggered. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
-             $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you for your interest!"]; // Generic message
-            // Clear submitted data
-            $submitted_data = []; // Treat as if empty valid submission
-        } else {
-            // Sanitize Volunteer Form Data
-            $volunteer_name = sanitize_string($_POST['volunteer_name'] ?? '');
-            $volunteer_email = sanitize_email($_POST['volunteer_email'] ?? '');
-            $volunteer_phone = sanitize_string($_POST['volunteer_phone'] ?? '');
-            $volunteer_area = sanitize_string($_POST['volunteer_area'] ?? '');
-            $volunteer_availability = sanitize_string($_POST['volunteer_availability'] ?? '');
-            $volunteer_message = sanitize_string($_POST['volunteer_message'] ?? '');
-            // Add reCAPTCHA response if applicable
-            // $volunteer_recaptcha_response = sanitize_string($_POST['g-recaptcha-response'] ?? '');
-
-
-            // Store submitted data before validation for repopulation on error
-            $submitted_data = [
-                'volunteer_name' => $volunteer_name,
-                'volunteer_email' => $volunteer_email,
-                'volunteer_phone' => $volunteer_phone,
-                'volunteer_area' => $volunteer_area,
-                'volunteer_availability' => $volunteer_availability,
-                'volunteer_message' => $volunteer_message,
-                // 'g-recaptcha-response' => $volunteer_recaptcha_response,
-            ];
-
-            // Validation Rules for Volunteer Form
-            $rules = [
-                'volunteer_name' => 'required|alpha_space|minLength:2|maxLength:100',
-                 // require email OR phone
-                'volunteer_email' => 'required_without:volunteer_phone|email|maxLength:255',
-                'volunteer_phone' => 'required_without:volunteer_email|phone|maxLength:20',
-                'volunteer_area' => 'required|in:Health,Education,Environment,Communication,Events,Other', // Adjust options
-                'volunteer_availability' => 'required|maxLength:255',
-                'volunteer_message' => 'maxLength:1000', // Optional field
-                // Add reCAPTCHA rule here if implemented and required
-                // 'g-recaptcha-response' => 'required|recaptcha',
-            ];
-
-            $validation_errors = validate_data($submitted_data, $rules);
-            $form_errors[$form_id] = $validation_errors;
-
-            if (empty($validation_errors)) {
-                // Proceed with sending email if validation passes
-                $to = RECIPIENT_EMAIL_VOLUNTEER;
-                $subject = "New Volunteer Interest: " . $volunteer_name;
-                $body = "A new volunteer interest form has been submitted.\n\n";
-                $body .= "Name: " . $volunteer_name . "\n";
-                $body .= "Email: " . (!empty($volunteer_email) ? $volunteer_email : "Not Provided") . "\n";
-                $body .= "Phone: " . (!empty($volunteer_phone) ? $volunteer_phone : "Not Provided") . "\n";
-                $body .= "Area of Interest: " . $volunteer_area . "\n";
-                $body .= "Availability: " . $volunteer_availability . "\n";
-                if (!empty($volunteer_message)) {
-                    $body .= "Message:\n" . $volunteer_message . "\n";
-                }
-                $body .= "\n---\nIP: " . ($_SERVER['REMOTE_ADDR'] ?? 'N/A') . "\n";
-                $body .= "Time: " . date('Y-m-d H:i:s T') . "\n";
-
-                // Use the volunteer's email or name for Reply-To if available, otherwise default sender
-                $replyToEmail = !empty($volunteer_email) ? $volunteer_email : ''; // Only use if valid email provided
-                $replyToName = $volunteer_name;
-
-                if (send_email($to, $subject, $body, $replyToEmail, $replyToName, $logContext, LOG_FILE_VOLUNTEER, LOG_FILE_ERROR)) {
-                    $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you, {$volunteer_name}! Your volunteer interest has been submitted. We will be in touch shortly."];
-                    // Clear submitted data on success
-                     unset($submitted_data); // This prevents it from being stored in session later
-                } else {
-                    $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Sorry, there was an issue submitting your volunteer interest. Please try again later or contact us directly."];
-                    // Error is logged within send_email() helper
-                }
-            } else {
-                // Validation errors occurred
-                 $errorCount = count($validation_errors);
-                 $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the {$errorCount} error(s) below to submit your interest."];
-                 log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors), LOG_FILE_ERROR);
-                 // Submitted data is kept automatically by the POST handling logic below
-             }
+            } catch (Exception $e) {
+                 // This catch might be redundant if 'date:Y-m-d' rule works correctly, but kept for safety
+                 $validation_errors['donor_dob'] = $validation_errors['donor_dob'] ?? "Invalid date format.";
+                 log_message("{$logContext} DOB Exception during age calculation: " . $e->getMessage(), LOG_FILE_ERROR);
+            }
         }
-        $_SESSION['scroll_to'] = '#volunteer-section'; // Set scroll target
 
-    } // --- End Volunteer Form Processing ---
+        // Consent validation
+        if (!$donor_consent) {
+            $validation_errors['donor_consent'] = "You must agree to be contacted.";
+        }
+
+        // Store errors
+        $form_errors[$form_id] = $validation_errors;
+
+        // Process if valid
+        if (empty($validation_errors)) {
+            $to = RECIPIENT_EMAIL_DONOR_REG;
+            $subject = "New Blood Donor Registration: " . $donor_name;
+            $body = "Potential blood donor registered:\n\n"
+                  . "Name: {$donor_name}\n"
+                  . "DOB: {$donor_dob}" . ($age !== null ? " (Age Approx: {$age})" : "") . "\n"
+                  . "Email: {$donor_email}\n"
+                  . "Phone: {$donor_phone}\n"
+                  . "Blood Group: {$donor_blood_group}\n"
+                  . "Location: {$donor_location}\n"
+                  . "Consent Given: Yes\n"
+                  . "\n-------------------------------------------------\n"
+                  . "Submitted By IP: {$_SERVER['REMOTE_ADDR']}\n"
+                  . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
+                  . "-------------------------------------------------\n\n"
+                  . "ACTION REQUIRED: Verify eligibility and add to donor database/list.";
+
+            // Send email using the helper function
+            if (send_email($to, $subject, $body, $donor_email, $donor_name, $logContext)) {
+                $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you, {$donor_name}! Your registration is received. We will contact you regarding donation opportunities."];
+                log_message("{$logContext} Success. Name: {$donor_name}, BG: {$donor_blood_group}.", LOG_FILE_BLOOD_DONOR);
+                // Clear submitted data on successful submission
+                unset($submitted_data); // This prevents it from being stored in session later
+            } else {
+                $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Sorry, {$donor_name}, there was an internal error processing your registration. Please try again later or contact us directly."];
+                // Error logged within send_email() helper
+            }
+        } else {
+            // Validation errors occurred
+            $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the " . count($validation_errors) . " error(s) below to submit your registration."];
+            log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors), LOG_FILE_ERROR);
+            // Submitted data is kept automatically by the POST handling logic below
+        }
+         $_SESSION['scroll_to'] = '#donor-registration'; // Set scroll target
+    }
+
+    // --- Process Blood Request Form ---
+    elseif ($submitted_form_id === 'blood_request_form') {
+        $form_id = 'blood_request_form';
+        $logContext = "[Blood Req Form]";
+        // Sanitize
+        $request_patient_name = sanitize_string($_POST['request_patient_name'] ?? '');
+        $request_blood_group = sanitize_string($_POST['request_blood_group'] ?? '');
+        $request_units_raw = $_POST['request_units'] ?? null; // Keep raw for repopulation if invalid
+        $request_hospital = sanitize_string($_POST['request_hospital'] ?? '');
+        $request_contact_person = sanitize_string($_POST['request_contact_person'] ?? '');
+        $request_contact_phone = sanitize_string($_POST['request_contact_phone'] ?? '');
+        $request_urgency = sanitize_string($_POST['request_urgency'] ?? '');
+        $request_message = sanitize_string($_POST['request_message'] ?? '');
+
+        // Store submitted data before validation for repopulation on error
+        $submitted_data = [
+            'request_patient_name' => $request_patient_name, 'request_blood_group' => $request_blood_group,
+            'request_units' => $request_units_raw, 'request_hospital' => $request_hospital,
+            'request_contact_person' => $request_contact_person, 'request_contact_phone' => $request_contact_phone,
+            'request_urgency' => $request_urgency, 'request_message' => $request_message
+        ];
+
+        // Validation Rules
+        $rules = [
+            'request_patient_name' => 'required|alpha_space|minLength:2|maxLength:100',
+            'request_blood_group' => 'required|in:'.implode(',', $blood_types),
+            'request_units' => 'required|integer|min:1|max:20', // Validate as integer between 1 and 20
+            'request_hospital' => 'required|maxLength:200',
+            'request_contact_person' => 'required|alpha_space|minLength:2|maxLength:100',
+            'request_contact_phone' => 'required|phone|maxLength:20',
+            // Ensure urgency is one of the allowed options
+            'request_urgency' => 'required|in:Emergency (Immediate),Urgent (Within 24 Hours),Within 2-3 Days,Planned (Within 1 Week)',
+            'request_message' => 'maxLength:2000',
+        ];
+        $validation_errors = validate_data($submitted_data, $rules);
+
+        // After validation, cast units to integer if validation passed
+        $request_units = null; // Initialize validated units variable
+        if(empty($validation_errors['request_units'])) {
+             $request_units = (int)$request_units_raw; // Safely cast to int if validation found no error for this field
+        }
+
+        // Store errors
+        $form_errors[$form_id] = $validation_errors;
 
 
-     // --- Post-Processing & Redirect ---
-     // Store form results in session (only errors and messages, submissions only if errors occurred)
-     $_SESSION['form_messages'] = $form_messages;
-     $_SESSION['form_errors'] = $form_errors;
+         if (empty($validation_errors)) {
+             $to = RECIPIENT_EMAIL_BLOOD_REQUEST;
+             $subject = "Blood Request ({$request_urgency}): {$request_blood_group} for {$request_patient_name}";
+             $body = "Blood request submitted via PAHAL website:\n\n"
+                   . "!!! BLOOD REQUEST - {$request_urgency} !!!\n\n"
+                   . "Patient Name: {$request_patient_name}\n"
+                   . "Blood Group Needed: {$request_blood_group}\n"
+                   . "Units Required: {$request_units}\n" // Use the potentially validated integer value
+                   . "Hospital Name & Location: {$request_hospital}\n"
+                   . "\n-------------------------------------------------\n"
+                   . "Contact Person (Attendant): {$request_contact_person}\n"
+                   . "Contact Phone: {$request_contact_phone}\n"
+                   . "\n-------------------------------------------------\n"
+                   . "Additional Info:\n" . (!empty($request_message) ? $request_message : "(None)") . "\n"
+                   . "\n-------------------------------------------------\n"
+                   . "Submitted By IP: {$_SERVER['REMOTE_ADDR']}\n"
+                   . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
+                   . "-------------------------------------------------\n\n"
+                   . "ACTION REQUIRED: Verify request and assist if possible by contacting the Contact Person.";
 
-     // Only store submissions if there were errors for the form that was processed
-     if (isset($submitted_form_id) && !empty($form_errors[$submitted_form_id])) {
+             // Send email using the helper function
+             // Use the contact person's phone number in the reply-to if no email was provided (mail() Reply-To expects email format)
+             // Since we require phone but not email for request, Reply-To won't be useful for email replies.
+             // So Reply-To will just be the default sender email.
+             if (send_email($to, $subject, $body, '', $request_contact_person, $logContext)) {
+                 $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you! Your blood request has been submitted. We will try our best to assist and may contact {$request_contact_person}."];
+                 log_message("{$logContext} Success. Patient: {$request_patient_name}, BG: {$request_blood_group}, Units: {$request_units}.", LOG_FILE_BLOOD_REQUEST);
+                 // Clear submitted data on successful submission
+                 unset($submitted_data); // This prevents it from being stored in session later
+             } else {
+                 $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Sorry, there was an internal error submitting your blood request. Please try again later or contact us directly."];
+                  // Error logged within send_email() helper
+             }
+         } else {
+             // Validation errors occurred
+             $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please fix the " . count($validation_errors) . " error(s) below to submit your request."];
+             log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors), LOG_FILE_ERROR);
+             // Submitted data is kept automatically by the POST handling logic below
+         }
+         $_SESSION['scroll_to'] = '#request-blood'; // Set scroll target
+    }
+
+    // --- Post-Processing & Redirect ---
+    // Store form results in session (only errors and messages, submissions only if errors occurred)
+    $_SESSION['form_messages'] = $form_messages;
+    $_SESSION['form_errors'] = $form_errors;
+    // Only store submissions if there were errors on the form that was processed
+     if (isset($form_errors[$submitted_form_id]) && !empty($form_errors[$submitted_form_id])) {
          $_SESSION['form_submissions'][$submitted_form_id] = $submitted_data ?? []; // Store submitted data if available
      } else {
          // If no errors for the submitted form, clear any old submissions for that form
-         // Note: This clears data for *any* form if the most recent submission had no errors.
-         // A more robust approach might clear *only* the successfully submitted form's data.
-         // For simplicity matching the original index logic, we clear all if current was error-free.
-         // However, let's adopt the blood page's logic: only store the data for the *current* form if *that* form had errors.
-          if (isset($_SESSION['form_submissions'][$submitted_form_id])) {
+         if (isset($_SESSION['form_submissions'][$submitted_form_id])) {
               unset($_SESSION['form_submissions'][$submitted_form_id]);
-          }
+         }
      }
 
-     // Determine scroll target from session, then clear it
+
+     // Get scroll target and clear it from session
      $scrollTarget = $_SESSION['scroll_to'] ?? '';
      unset($_SESSION['scroll_to']);
 
@@ -717,31 +718,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
      header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . $scrollTarget, true, 303);
      exit; // Terminate script after redirect
 
- } else {
-     // --- GET Request: Retrieve session data after potential redirect ---
-    // Retrieve state for all possible form IDs
-    if (isset($_SESSION['form_messages'])) { $form_messages = $_SESSION['form_messages']; unset($_SESSION['form_messages']); } else { $form_messages = ['contact_form' => [], 'volunteer_form' => []]; }
-     if (isset($_SESSION['form_errors'])) { $form_errors = $_SESSION['form_errors']; unset($_SESSION['form_errors']); } else { $form_errors = ['contact_form' => [], 'volunteer_form' => []]; }
-     if (isset($_SESSION['form_submissions'])) { $form_submissions = $_SESSION['form_submissions']; unset($_SESSION['form_submissions']); } else { $form_submissions = ['contact_form' => [], 'volunteer_form' => []]; }
-
-    $csrf_token = generate_csrf_token(); // Ensure token exists for GET request render
- }
+} else {
+    // --- GET Request: Retrieve session data after potential redirect ---
+    // Retrieve form results stored in session by the POST handler
+    if (isset($_SESSION['form_messages'])) { $form_messages = $_SESSION['form_messages']; unset($_SESSION['form_messages']); }
+    if (isset($_SESSION['form_errors'])) { $form_errors = $_SESSION['form_errors']; unset($_SESSION['form_errors']); }
+    // Retrieve submitted data only if redirection happened due to errors
+    if (isset($_SESSION['form_submissions'])) { $form_submissions = $_SESSION['form_submissions']; unset($_SESSION['form_submissions']); }
+    // Ensure a CSRF token is available for the form(s) to be displayed
+    $csrf_token = generate_csrf_token();
+}
 
 // --- Prepare Form Data for HTML (using helper function) ---
 // These variables are used to pre-fill form fields, typically after a validation error
-$contact_form_name_value = get_form_value('contact_form', 'name');
-$contact_form_email_value = get_form_value('contact_form', 'email');
-$contact_form_message_value = get_form_value('contact_form', 'message');
+$donor_reg_name_value = get_form_value('donor_registration_form', 'donor_name');
+$donor_reg_email_value = get_form_value('donor_registration_form', 'donor_email');
+$donor_reg_phone_value = get_form_value('donor_registration_form', 'donor_phone');
+$donor_reg_blood_group_value = get_form_value('donor_registration_form', 'donor_blood_group');
+$donor_reg_dob_value = get_form_value('donor_registration_form', 'donor_dob');
+$donor_reg_location_value = get_form_value('donor_registration_form', 'donor_location');
+// Checkbox value needs special handling as it's 'yes' or ''
+$donor_reg_consent_value = (get_form_value('donor_registration_form', 'donor_consent') === 'yes');
 
-$volunteer_form_name_value = get_form_value('volunteer_form', 'volunteer_name');
-$volunteer_form_email_value = get_form_value('volunteer_form', 'volunteer_email');
-$volunteer_form_phone_value = get_form_value('volunteer_form', 'volunteer_phone');
-$volunteer_form_area_value = get_form_value('volunteer_form', 'volunteer_area');
-$volunteer_form_availability_value = get_form_value('volunteer_form', 'volunteer_availability');
-$volunteer_form_message_value = get_form_value('volunteer_form', 'volunteer_message');
+$blood_req_patient_name_value = get_form_value('blood_request_form', 'request_patient_name');
+$blood_req_blood_group_value = get_form_value('blood_request_form', 'request_blood_group');
+$blood_req_units_value = get_form_value('blood_request_form', 'request_units');
+$blood_req_hospital_value = get_form_value('blood_request_form', 'request_hospital');
+$blood_req_contact_person_value = get_form_value('blood_request_form', 'request_contact_person');
+$blood_req_contact_phone_value = get_form_value('blood_request_form', 'request_contact_phone');
+$blood_req_urgency_value = get_form_value('blood_request_form', 'request_urgency');
+$blood_req_message_value = get_form_value('blood_request_form', 'request_message');
 
-
-// Define E-Waste page theme colors using PHP variables for use in Tailwind config
+// Define E-Waste page theme colors using PHP variables for use in Tailwind config (as per E-Waste style)
 $primary_color = '#2E7D32'; // Green 800 (closer to E-Waste primary)
 $primary_dark_color = '#1B5E20'; // Green 900
 $accent_color = '#FFA000'; // Amber 500 (E-Waste accent)
@@ -750,13 +758,10 @@ $secondary_color = '#F9FAFB'; // Gray 50 (E-Waste background)
 $neutral_dark_color = '#374151'; // Gray 700
 $neutral_medium_color = '#6B7280'; // Gray 500
 $red_color = '#DC2626'; // Red 600 for errors/dangers
-$green_color_success = '#16a34a'; // Green 600 (used for checkmarks, success indicators)
-$blue_color_info = '#3B82F6'; // Blue 500 (used for info boxes)
 
 
 ?>
 <!DOCTYPE html>
-<!-- Removed dark class - using E-Waste's single theme -->
 <html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
@@ -765,32 +770,23 @@ $blue_color_info = '#3B82F6'; // Blue 500 (used for info boxes)
     <meta name="description" content="<?= htmlspecialchars($page_description) ?>">
     <meta name="keywords" content="<?= htmlspecialchars($page_keywords) ?>">
     <meta name="robots" content="index, follow">
-    <!-- Removed theme color meta tags -->
 
     <!-- Open Graph - Update URLs and image -->
     <meta property="og:title" content="<?= htmlspecialchars($page_title) ?>"/>
     <meta property="og:description" content="<?= htmlspecialchars($page_description) ?>"/>
     <meta property="og:type" content="website"/>
-    <meta property="og:url" content="https://your-pahal-domain.com/"/> <!-- CHANGE -->
-    <meta property="og:image" content="https://your-pahal-domain.com/images/pahal-og-enhanced.jpg"/> <!-- CHANGE/CREATE -->
+    <meta property="og:url" content="https://your-pahal-domain.com/blood-donation.php"/> <!-- CHANGE -->
+    <meta property="og:image" content="https://your-pahal-domain.com/images/pahal-blood-og.jpg"/> <!-- CHANGE/CREATE -->
     <meta property="og:site_name" content="PAHAL NGO Jalandhar">
     <!-- OG image dimensions are good practice -->
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-
-    <!-- Twitter Card - Update URLs and image -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://your-pahal-domain.com/"> <!-- CHANGE -->
-    <meta name="twitter:title" content="<?= htmlspecialchars($page_title) ?>">
-    <meta name="twitter:description" content="<?= htmlspecialchars($page_description) ?>">
-    <meta name="twitter:image" content="https://your-pahal-domain.com/images/pahal-twitter-enhanced.jpg"> <!-- CHANGE/CREATE -->
 
 
     <!-- Favicon - Use the same as E-Waste -->
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
      <link rel="icon" type="image/svg+xml" href="/favicon.svg"> <!-- Optional SVG Favicon -->
      <link rel="apple-touch-icon" href="/apple-touch-icon.png"> <!-- Optional Apple Touch Icon -->
-     <link rel="manifest" href="/site.webmanifest">
 
 
     <!-- Tailwind CSS CDN - Keep forms plugin as it's helpful, but style inputs via base layer -->
@@ -804,1153 +800,605 @@ $blue_color_info = '#3B82F6'; // Blue 500 (used for info boxes)
     <!-- Font Awesome - Matching E-Waste page version -->
      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-    <!-- Simple Lightbox CSS (Needed for Gallery) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.css">
-
-    <!-- Removed custom CSS variables, using Tailwind config colors directly -->
-
 
     <!-- Tailwind Config & Custom CSS -->
     <script>
+        // == Tailwind Config (Matching E-Waste Page) ==
         tailwind.config = {
-          // Removed darkMode setting to match target blood page
           theme: {
             extend: {
               colors: {
-                // Define E-Waste theme colors using PHP variables
-                primary: '<?= $primary_color ?>', // Green 800
-                'primary-dark': '<?= $primary_dark_color ?>', // Green 900
-                accent: '<?= $accent_color ?>', // Amber 500
-                'accent-dark': '<?= $accent_dark_color ?>', // Amber 600
-                secondary: '<?= $secondary_color ?>', // Gray 50 (E-Waste background)
-                neutral: { light: '#F3F4F6', DEFAULT: '<?= $neutral_medium_color ?>', dark: '<?= $neutral_dark_color ?>' }, // Gray shades
-                 danger: '<?= $red_color ?>', 'danger-light': '#FECACA', // Red for errors/danger
-                 info: '<?= $blue_color_info ?>', 'info-light': '#EFF6FF', // Blue for info (matching E-Waste)
-                 success: '<?= $green_color_success ?>', 'success-light': '#D1FAE5', // Green for success (matching E-Waste)
+                primary: '<?= $primary_color ?>',
+                'primary-dark': '<?= $primary_dark_color ?>',
+                 accent: '<?= $accent_color ?>',
+                'accent-dark': '<?= $accent_dark_color ?>',
+                secondary: '<?= $secondary_color ?>',
+                neutral: { light: '#F3F4F6', DEFAULT: '<?= $neutral_medium_color ?>', dark: '<?= $neutral_dark_color ?>' },
+                 danger: '<?= $red_color ?>', 'danger-light': '#FECACA',
+                 info: '#3B82F6', 'info-light': '#EFF6FF',
               },
-              fontFamily: {
-                // Use E-Waste font families
-                'sans': ['Open Sans', 'sans-serif'],
-                'heading': ['Lato', 'sans-serif'],
-                // Removed 'mono'
-              },
-              container: {
-                // Use E-Waste container definition
-                center: true, padding: '1rem', screens: { sm: '640px', md: '768px', lg: '1024px', xl: '1140px', '2xl': '1280px' }
-              },
-              animation: {
-                // Use E-Waste animations + keep relevant ones from original index if desired
-                'fade-in-scale': 'fadeInScale 0.6s ease-out forwards',
-                'slide-up': 'slideUp 0.5s ease-out forwards',
-                'pulse-glow': 'pulseGlow 2s ease-in-out infinite', // From refactored blood page
-                'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite', // From original index
-                'bounce-subtle': 'bounceSubtle 2s infinite ease-in-out', // From original index
-                'gradient-bg': 'gradientBg 15s ease infinite', // From original index
-                'glow-pulse': 'glowPulse 2.5s infinite alternate ease-in-out', // From original index
-                 'icon-bounce': 'iconBounce 0.6s ease-out', // From original index
-                 // Removed form-message-in animation as simplified in blood page
-              },
-              keyframes: {
-                 // Use E-Waste keyframes + keep relevant ones from original index
-                 fadeInScale: { '0%': { opacity: 0, transform: 'scale(0.95)' }, '100%': { opacity: 1, transform: 'scale(1)' } },
-                 slideUp: { '0%': { opacity: 0, transform: 'translateY(20px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
-                 pulseGlow: { '0%, 100%': { opacity: 1, boxShadow: '0 0 0 0 rgba(255, 160, 0, 0.7)' }, '50%': { opacity: 0.8, boxShadow: '0 0 10px 5px rgba(255, 160, 0, 0)' } }, // Amber glow
-                 pulse: { '0%, 100%': { opacity: 1 }, '50%': { opacity: .5 } }, // Default pulse
-                 bounceSubtle: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },
-                 gradientBg: { '0%': { backgroundPosition: '0% 50%' }, '50%': { backgroundPosition: '100% 50%' }, '100%': { backgroundPosition: '0% 50%' } },
-                 glowPulse: { '0%': { boxShadow: '0 0 5px 0px rgba(255, 160, 0, 0.4)' }, '100%': { boxShadow: '0 0 20px 5px rgba(255, 160, 0, 0.4)' } }, // Use accent color for glow
-                 iconBounce: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-3px)' } },
-                 // Removed fadeIn, fadeInDown, fadeInUp, slideInLeft, slideInRight keyframes as covered by slideUp/fadeInScale or handled by JS Intersection Observer
-              },
-              boxShadow: {
-                   // Use E-Waste shadow definition
-                  'card': '0 5px 15px rgba(0, 0, 0, 0.07)',
-                  'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Default lg
-                  'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', // Default xl
-                   '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)', // Default 2xl
-              },
-              // Removed Blood page custom shadows
+              fontFamily: { 'sans': ['Open Sans', 'sans-serif'], 'heading': ['Lato', 'sans-serif'], },
+              container: { center: true, padding: '1rem', screens: { sm: '640px', md: '768px', lg: '1024px', xl: '1140px', '2xl': '1280px' } },
+              animation: { 'fade-in-scale': 'fadeInScale 0.6s ease-out forwards', 'slide-up': 'slideUp 0.5s ease-out forwards', 'pulse-glow': 'pulseGlow 2s ease-in-out infinite', },
+              keyframes: { fadeInScale: { '0%': { opacity: 0, transform: 'scale(0.95)' }, '100%': { opacity: 1, transform: 'scale(1)' } }, slideUp: { '0%': { opacity: 0, transform: 'translateY(20px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } }, pulseGlow: { '0%, 100%': { opacity: 1, boxShadow: '0 0 0 0 rgba(255, 160, 0, 0.7)' }, '50%': { opacity: 0.8, boxShadow: '0 0 10px 5px rgba(255, 160, 0, 0)' } } }
             }
           }
         }
     </script>
     <style type="text/tailwindcss">
-        /* --- Removed CSS Variables for Theming (Matching E-Waste Single Theme) --- */
-        /* Removed custom scrollbar styles */
-
+        /* == Shared Base Styles (Matching E-Waste Page) == */
         @layer base {
-            /* Adopt E-Waste base styles */
-            html { @apply scroll-smooth antialiased; } /* Kept antialiased from original index */
-            body { @apply font-sans text-neutral-dark leading-relaxed bg-secondary pt-[70px]; } /* Added pt-[70px] for fixed header */
-            h1, h2, h3, h4, h5, h6 { @apply font-heading text-primary-dark font-bold leading-tight mb-4 tracking-tight; }
-            h1 { @apply text-4xl md:text-5xl lg:text-6xl font-black; } /* Kept black weight for H1 */
-            h2 { @apply text-3xl md:text-4xl text-primary-dark; }
-            h3 { @apply text-2xl md:text-3xl text-primary; }
-            h4 { @apply text-xl font-semibold text-neutral-dark mb-2; } /* Using neutral dark for h4 as in E-Waste */
-            p { @apply mb-5 text-base md:text-lg text-neutral; }
-            a { @apply text-primary hover:text-primary-dark transition duration-300; } /* Green links */
-            a:not(.btn):not(.nav-link):not(.footer-link) { /* Specific default link style from original index */
-                 @apply underline decoration-primary/50 hover:decoration-primary decoration-1 underline-offset-2;
-            }
-            hr { @apply border-gray-300 my-12 md:my-16; } /* Matching E-Waste border/spacing */
+             html { @apply scroll-smooth; }
+             body { @apply font-sans text-neutral-dark leading-relaxed bg-secondary pt-[70px] antialiased; } /* Added pt-[70px] for fixed header */
+             h1, h2, h3, h4, h5, h6 { @apply font-heading text-primary-dark font-bold leading-tight mb-4 tracking-tight; }
+             h1 { @apply text-4xl md:text-5xl lg:text-6xl; }
+             h2 { @apply text-3xl md:text-4xl text-primary-dark; }
+             h3 { @apply text-2xl md:text-3xl text-primary; }
+             p { @apply mb-5 text-base md:text-lg text-neutral; }
+             a { @apply text-primary hover:text-primary-dark transition duration-300; } /* Green links */
+             hr { @apply border-gray-300 my-12 md:my-16; }
 
-             /* Adopt E-Waste list styles */
-            ul.checkmark-list { @apply list-none space-y-2 mb-6 pl-0; }
-            ul.checkmark-list li { @apply flex items-start; }
-            ul.checkmark-list li::before { content: '\f00c'; font-family: 'Font Awesome 6 Free'; font-weight: 900; @apply text-green-600 mr-3 mt-1 text-sm flex-shrink-0; } /* Using green-600 explicitly */
-            ul.cross-list { @apply list-none space-y-2 mb-6 pl-0; }
-            ul.cross-list li { @apply flex items-start; }
-            ul.cross-list li::before { content: '\f00d'; font-family: 'Font Awesome 6 Free'; font-weight: 900; @apply text-danger mr-3 mt-1 text-sm flex-shrink-0; }
+             /* List styles matching E-Waste */
+             ul.checkmark-list { @apply list-none space-y-2 mb-6 pl-0; }
+             ul.checkmark-list li { @apply flex items-start; }
+             ul.checkmark-list li::before { content: '\f00c'; font-family: 'Font Awesome 6 Free'; font-weight: 900; @apply text-green-500 mr-3 mt-1 text-sm flex-shrink-0; }
+             ul.cross-list { @apply list-none space-y-2 mb-6 pl-0; }
+             ul.cross-list li { @apply flex items-start; }
+             ul.cross-list li::before { content: '\f00d'; font-family: 'Font Awesome 6 Free'; font-weight: 900; @apply text-danger mr-3 mt-1 text-sm flex-shrink-0; }
 
-            /* Adopt E-Waste table styles (if needed) */
-            table { @apply w-full border-collapse text-left text-sm text-neutral; }
-            thead { @apply bg-primary/10; }
-            th { @apply border border-primary/20 px-4 py-2 font-semibold text-primary-dark; } /* Primary dark for table headers */
-            td { @apply border border-gray-300 px-4 py-2; }
-            tbody tr:nth-child(odd) { @apply bg-white; }
-            tbody tr:nth-child(even) { @apply bg-neutral-light; }
-            tbody tr:hover { @apply bg-primary/5; }
+             /* Table styles matching E-Waste (not used in blood, but kept for consistency if needed) */
+             table { @apply w-full border-collapse text-left text-sm text-neutral; }
+             thead { @apply bg-primary/10; }
+             th { @apply border border-primary/20 px-4 py-2 font-semibold text-primary; }
+             td { @apply border border-gray-300 px-4 py-2; }
+             tbody tr:nth-child(odd) { @apply bg-white; }
+             tbody tr:nth-child(even) { @apply bg-neutral-light; }
+             tbody tr:hover { @apply bg-primary/5; }
 
-            /* Adopt E-Waste form element base styles */
-            label { @apply block text-sm font-medium text-gray-700 mb-1; } /* Matching E-Waste label spacing */
-            label.required::after { content: ' *'; @apply text-red-500; }
-            input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="date"], select, textarea { /* Added number and date types */
-                 @apply mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition sm:text-sm; }
-            textarea { @apply min-h-[120px] resize-y; } /* Use E-Waste textarea height */
-             /* Select arrow using base style override, not forms plugin specific class */
-             select { @apply appearance-none bg-white bg-no-repeat; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%236B7280"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>'); background-position: right 0.5rem center; background-size: 1.5em 1.5em; }
-             /* Basic checkbox styling */
-            input[type='checkbox'] { @apply rounded border-gray-300 text-primary shadow-sm focus:border-primary focus:ring-primary; }
+             /* Form element base styles matching E-Waste */
+             label { @apply block text-sm font-medium text-gray-700 mb-1; }
+             label.required::after { content: ' *'; @apply text-red-500; }
+             input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="date"], select, textarea {
+                  @apply mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition sm:text-sm; }
+             textarea { @apply min-h-[120px] resize-y; }
+              select { @apply appearance-none bg-white bg-no-repeat; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%236B7280"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>'); background-position: right 0.5rem center; background-size: 1.5em 1.5em; }
+              input[type='checkbox'] { @apply rounded border-gray-300 text-primary shadow-sm focus:border-primary focus:ring-primary; }
 
-            /* Global focus style matching E-Waste */
-            *:focus-visible { @apply outline-none ring-2 ring-offset-2 ring-accent; } /* Accent ring for focus-visible */
-
-             /* Blockquote matching E-Waste style (if any) or simplified */
-             blockquote { @apply border-l-4 border-accent bg-gray-100 p-5 my-6 italic text-neutral shadow-inner rounded-r-md;} /* Accent border */
-             blockquote cite { @apply block not-italic mt-2 text-sm text-neutral/80;}
+             /* Global focus style matching E-Waste */
+             *:focus-visible { @apply outline-none ring-2 ring-offset-2 ring-accent; }
         }
 
-        @layer components {
-            /* Adopt E-Waste component styles */
-            .btn { @apply inline-flex items-center justify-center bg-primary text-white font-semibold py-3 px-8 rounded-full shadow-md hover:bg-primary-dark hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed group; } /* Added group for nested icon animation */
-            .btn i { @apply mr-2 -ml-1 transition-transform duration-300 group-hover:scale-110; } /* Adjusted icon class */
-             /* Defined btn-secondary and btn-accent based on E-Waste structure and colors */
-             /* btn-secondary matches E-Waste's btn-secondary (accent color) */
-            .btn-secondary { @apply inline-flex items-center justify-center bg-accent text-black font-semibold py-3 px-8 rounded-full shadow-md hover:bg-accent-dark hover:text-white hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
-             /* btn-accent uses danger color for Blood Request, using amber here for general accent button */
-             .btn-accent { @apply inline-flex items-center justify-center bg-accent text-black font-semibold py-3 px-8 rounded-full shadow-md hover:bg-accent-dark hover:text-white hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
-             .btn-outline { @apply inline-flex items-center justify-center bg-transparent border-2 border-primary text-primary font-semibold py-2 px-6 rounded-full hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
-             /* Additional button variations if needed from original index, mapping to new palette */
-             .btn-outline.secondary { @apply !text-neutral !border-neutral hover:!bg-neutral hover:!text-white focus-visible:ring-neutral; } /* Neutral outline button */
-             .btn-light { @apply inline-flex items-center justify-center bg-white text-primary font-semibold py-3 px-8 rounded-full shadow-md hover:bg-gray-100 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; } /* Light button with primary text */
-             .btn-icon { @apply p-2.5 rounded-full focus-visible:ring-offset-0 text-neutral hover:text-primary transition-colors duration-200; } /* Icon button style */
+        /* == Shared Component Styles (Matching E-Waste Page) == */
+         @layer components {
+             /* Button styles */
+             .btn { @apply inline-flex items-center justify-center bg-primary text-white font-semibold py-3 px-8 rounded-full shadow-md hover:bg-primary-dark hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
+             .btn i { @apply mr-2 -ml-1; }
+              .btn-secondary { @apply inline-flex items-center justify-center bg-accent text-black font-semibold py-3 px-8 rounded-full shadow-md hover:bg-accent-dark hover:text-white hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
+             .btn-accent { @apply inline-flex items-center justify-center bg-danger text-white font-semibold py-3 px-8 rounded-full shadow-md hover:bg-red-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-danger focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
+             .btn-outline { @apply inline-flex items-center justify-center bg-transparent border-2 border-primary text-primary font-semibold py-2 px-6 rounded-full hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out; }
 
+            /* Section/Layout components */
+             .section-padding { @apply py-16 md:py-24; }
+             .card { @apply bg-white p-6 rounded-lg shadow-md transition-shadow duration-300 hover:shadow-lg overflow-hidden; }
 
-            .section-padding { @apply py-16 md:py-24 px-4; } /* Matching E-Waste padding */
-            .card { @apply bg-white p-6 rounded-lg shadow-md transition-shadow duration-300 hover:shadow-lg overflow-hidden border border-gray-200; } /* Matching E-Waste card, added border */
-            .card-hover { @apply hover:shadow-xl hover:border-primary/50 hover:scale-[1.02] z-10; } /* Simple hover effect */
-             /* Removed .panel as card serves a similar purpose with padding */
-             .form-section { @apply card border-l-4 border-accent mt-12; } /* Use E-Waste card base, add left border, default accent border */
-             #volunteer-section .form-section { @apply !border-primary; } /* Primary border for volunteer form */
-             #contact .form-section { @apply !border-neutral; } /* Neutral border for contact form */
-
+            /* Form Section - Matching E-Waste style */
+             .form-section { @apply bg-white p-6 md:p-8 rounded-lg shadow-lg border-t-4 border-accent mt-12; }
 
              /* Section Title - Matching E-Waste style */
-            .section-title { @apply text-3xl md:text-4xl text-center mb-12 relative pb-4 text-primary-dark; }
-            .section-title::after { content: ''; @apply absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-primary rounded-full; }
-             /* Section Title with Gradient Underline (if needed from original index) */
-             .section-title-underline::after { content: ''; @apply absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-primary to-accent rounded-full opacity-80; }
+             .section-title { @apply text-3xl md:text-4xl text-center mb-12 relative pb-4 text-primary-dark; }
+             .section-title::after { content: ''; @apply absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-primary rounded-full; }
 
-
-            /* Removed Blood page form component classes (.form-label, .form-input, .form-error-message) - using base styles + utility */
              /* Form message base style (details handled in get_form_status_html) */
             .form-message { /* Base class for status messages */ }
-        }
+         }
 
-        @layer utilities {
-            /* Adopt E-Waste utilities */
-             .honeypot-field { @apply absolute left-[-5000px] w-px h-px overflow-hidden; } /* Simplified positioning */
-             .animate-delay-50 { animation-delay: 0.05s; } .animate-delay-100 { animation-delay: 0.1s; } .animate-delay-150 { animation-delay: 0.15s; } .animate-delay-200 { animation-delay: 0.2s; } .animate-delay-300 { animation-delay: 0.3s; } .animate-delay-400 { animation-delay: 0.4s; } .animate-delay-500 { animation-delay: 0.5s; } .animate-delay-700 { animation-delay: 0.7s; }
-
+        /* == Shared Utility Styles (Matching E-Waste Page) == */
+         @layer utilities {
+            .honeypot-field { @apply absolute left-[-5000px] w-px h-px overflow-hidden; }
+            .animate-delay-100 { animation-delay: 0.1s; }
+            .animate-delay-200 { animation-delay: 0.2s; }
+            .animate-delay-300 { animation-delay: 0.3s; }
+            .animate-delay-400 { animation-delay: 0.4s; } .animate-delay-500 { animation-delay: 0.5s; } .animation-delay-2s { animation-delay: 2s; }
 
             /* Form Error Class - Matching E-Waste style */
             .form-input-error { @apply border-red-500 ring-1 ring-red-500 focus:border-red-500 focus:ring-red-500; } /* Error Class */
 
-             /* Spinner utility - Matching E-Waste/Blood page */
-             .spinner { @apply inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current align-middle; } /* Use smaller spinner */
+             /* Spinner utility (can be simple) */
+             .spinner { @apply inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current align-middle; }
+         }
 
-             /* Animated Gradient Background Utility (Using new colors) */
-             .animated-gradient-primary-bg {
-                background: linear-gradient(-45deg, <?= $primary_color ?>, <?= $neutral_medium_color ?>, <?= $blue_color_info ?>, <?= $primary_color ?>); /* Primary, Neutral, Info */
-                background-size: 400% 400%;
-                animation: gradientBg 18s ease infinite;
-             }
-             .animated-gradient-accent-bg { /* Used for Volunteer section */
-                 background: linear-gradient(-45deg, <?= $accent_color ?>, <?= $red_color ?>, <?= $primary_color ?>, <?= $accent_color ?>); /* Accent, Danger, Primary */
-                 background-size: 400% 400%;
-                 animation: gradientBg 20s ease infinite;
-             }
 
-             /* Animation on Scroll Classes (From original index - keep if needed) */
-             .animate-on-scroll { opacity: 0; transition: opacity 0.8s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); }
-             .animate-on-scroll.fade-in-up { transform: translateY(40px); }
-             .animate-on-scroll.fade-in-left { transform: translateX(-50px); }
-             .animate-on-scroll.fade-in-right { transform: translateX(50px); }
-             .animate-on-scroll.is-visible { opacity: 1; transform: translate(0, 0); }
-        }
-
-        /* --- Specific Component Styles --- */
+        /* == Blood Donation Page Specific Styles == */
         /* Header - Matching E-Waste style */
         #main-header { @apply fixed top-0 left-0 w-full bg-white/95 backdrop-blur-sm z-50 shadow-sm transition-all duration-300 border-b border-gray-200; min-height: 70px; @apply py-2 md:py-0; }
-         body { @apply pt-[70px]; } /* Offset for fixed header, redundant with base but ensures clarity */
-         #main-header.scrolled { @apply shadow-lg bg-white/95 border-gray-300; }
-
-        /* Navigation - Matching E-Waste structure */
-        #navbar { @apply w-full lg:w-auto lg:flex hidden max-h-0 lg:max-h-screen overflow-hidden lg:overflow-visible absolute lg:relative top-[70px] lg:top-auto left-0 bg-white lg:bg-transparent shadow-xl lg:shadow-none lg:border-none border-t border-gray-200 transition-all duration-500 ease-in-out; }
-        #navbar.open { @apply block; max-height: calc(100vh - 70px); }
-         #navbar ul { @apply flex flex-col lg:flex-row lg:items-center lg:space-x-5 xl:space-x-6 py-4 lg:py-0 px-4 lg:px-0; }
-         #navbar ul li a { @apply text-neutral-dark hover:text-primary font-medium py-2 relative transition duration-300 ease-in-out text-sm lg:text-base block lg:inline-block lg:py-0 px-3 lg:px-2 xl:px-3; }
-         #navbar ul li a::after { content: ''; @apply absolute bottom-[-5px] left-0 w-0 h-[3px] bg-gradient-to-r from-primary to-accent opacity-0 transition-all duration-300 ease-out rounded-full group-hover:opacity-100 group-hover:w-full; } /* Primary to accent gradient underline */
-         #navbar ul li a.active { @apply text-primary font-semibold; }
-         #navbar ul li a.active::after { @apply w-full opacity-100; }
-
-         /* Mobile menu toggle (Matching E-Waste) */
-         .menu-toggle { @apply text-neutral-dark hover:text-primary transition-colors duration-200 p-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary; }
-         .menu-toggle span { @apply block w-6 h-0.5 bg-current rounded-full transition-all duration-300 ease-in-out; }
-         .menu-toggle span:nth-child(1) { @apply mb-1.5; }
-         .menu-toggle span:nth-child(3) { @apply mt-1.5; }
-         .menu-toggle.open span:nth-child(1) { @apply transform rotate-45 translate-y-[6px]; }
-         .menu-toggle.open span:nth-child(2) { @apply opacity-0; }
-         .menu-toggle.open span:nth-child(3) { @apply transform -rotate-45 -translate-y-[6px]; }
+         body { @apply pt-[70px]; } /* Offset for fixed header */
 
         /* Hero Section - Adapting E-Waste hero style */
-         #hero {
-             /* Using animated gradient utility with new colors */
-             @apply animated-gradient-primary-bg text-white section-padding flex items-center relative overflow-hidden min-h-[calc(100vh-70px)];
+         #hero-blood {
+             background: linear-gradient(rgba(179, 0, 0, 0.7), rgba(70, 0, 0, 0.8)), url('https://images.unsplash.com/photo-1591083592626-6e3a6f51475c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1770&q=80') no-repeat center center/cover; /* Blood-themed background */
+              @apply text-white section-padding flex items-center justify-center text-center relative overflow-hidden min-h-[60vh] md:min-h-[70vh];
          }
-         #hero::before { /* Subtle overlay */
-             content: ''; @apply absolute inset-0 bg-black/20; /* Dark overlay matching E-Waste hero */
-         }
-         .hero-text h1 { @apply !text-white mb-6 drop-shadow-lg leading-tight font-black; } /* Matching E-Waste hero h1, ensure white */
-         .hero-text p.lead { @apply text-gray-200 max-w-3xl mx-auto drop-shadow text-xl md:text-2xl mb-8; } /* Matching E-Waste hero p */
-         .hero-logo img { @apply drop-shadow-2xl animate-pulse-glow bg-white/10 p-3 backdrop-blur-sm; animation-duration: 4s; } /* Matching E-Waste/Blood page logo style */
-         .hero-scroll-indicator { @apply absolute bottom-8 left-1/2 -translate-x-1/2 z-10 hidden md:block; }
-         .hero-scroll-indicator a { @apply text-white/60 hover:text-white text-4xl animate-bounce-subtle; }
+         #hero-blood h1 { @apply text-white drop-shadow-lg; }
+         #hero-blood p.lead { @apply text-gray-200 max-w-3xl mx-auto drop-shadow text-xl md:text-2xl mb-8; }
+         #hero-blood .icon-drop { @apply text-6xl text-danger mb-4 animate-pulse-glow; } /* Blood icon, using E-Waste glow animation */
+         #hero-blood .cta-buttons { @apply flex flex-wrap justify-center gap-4; }
+         #hero-blood .cta-buttons .btn, #hero-blood .cta-buttons .btn-secondary, #hero-blood .cta-buttons .btn-accent { @apply !text-white; } /* Ensure text color for btns on dark hero */
 
 
-        /* Profile Section - Basic section/text block styling */
-         #profile .profile-image img { @apply rounded-lg shadow-xl mx-auto w-full object-cover h-full max-h-[500px] border-4 border-white; } /* Use E-Waste card shadow/border ideas */
+        /* Eligibility List Icons - Adapting E-Waste list item style ideas */
+        .eligibility-list li { @apply flex items-start mb-2 text-neutral; }
+        .eligibility-list li i { @apply mr-3 mt-1 text-sm flex-shrink-0; font-weight: 900; }
+        .eligibility-list li i.fa-check { @apply text-green-500; }
+        .eligibility-list li i.fa-exclamation-triangle { @apply text-accent; } /* Use accent for warning */
 
-         /* Objectives Section - Adapting card/list item style ideas */
-         #objectives { @apply bg-neutral-light; } /* Light background like E-Waste */
-         .objective-item { @apply bg-white p-5 rounded-lg shadow-sm transition duration-300 ease-in-out hover:shadow-md hover:border-accent border-l-4 border-transparent flex items-start space-x-4; } /* Use white background, border ideas from E-Waste */
-         .objective-item i { @apply text-primary group-hover:text-accent transition-all duration-300 flex-shrink-0 w-6 text-center text-xl group-hover:rotate-[15deg]; } /* Primary icon, accent on hover */
-         .objective-item p { @apply text-sm text-neutral leading-relaxed; } /* Neutral text color */
+        /* Upcoming Camps Cards - Adapting E-Waste card style */
+        .camp-card { @apply card; border-left: 4px solid <?= $accent_color ?>; } /* Use E-Waste card base, add left border */
+        .camp-card .camp-date { @apply text-primary-dark font-semibold text-lg mb-1 flex items-center gap-2; }
+        .camp-card .camp-date i { @apply text-primary; }
+        .camp-card p { @apply mb-2 text-sm text-neutral; }
+        .camp-card .camp-location { @apply text-primary font-semibold flex items-start gap-2; }
+         .camp-card .camp-location i { @apply mt-1 text-primary; }
+        .camp-card .camp-organizer { @apply flex items-center gap-2; }
+         .camp-card .camp-organizer i { @apply text-neutral; }
+        .camp-card .camp-note { @apply text-xs text-neutral mt-3 pt-3 border-t border-gray-200 italic; }
+         .camp-card .camp-note i { @apply text-neutral; }
 
-
-        /* Focus Areas Cards - Adapting E-Waste card style */
-        #areas-focus { @apply bg-white; } /* White background like E-Waste */
-        .focus-item { @apply card card-hover border-t-4 border-primary bg-white p-6 md:p-8 text-center flex flex-col items-center group; } /* Use E-Waste card and primary top border */
-        .focus-item .icon { @apply text-5xl text-primary mb-6 inline-block transition-transform duration-300 group-hover:scale-110 group-hover:animate-icon-bounce; } /* Primary icon color */
-        .focus-item h3 { @apply text-xl text-primary-dark mb-3 transition-colors duration-300 group-hover:text-primary; } /* Primary dark heading, primary on hover */
-        .focus-item p { @apply text-sm text-neutral leading-relaxed flex-grow mb-4 text-center; } /* Neutral text color */
-        .focus-item .read-more-link { @apply relative block text-sm font-semibold text-accent mt-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:underline pt-2; } /* Accent color for read more */
-        .focus-item .read-more-link::after { content: '\f061'; font-family: 'Font Awesome 6 Free'; @apply font-black text-xs ml-1.5 opacity-0 group-hover:opacity-100 translate-x-[-5px] group-hover:translate-x-0 transition-all duration-300 inline-block;}
-
-
-        /* News Section - Adapting E-Waste section/card style */
-        #news-section { @apply bg-neutral-light; } /* Light background */
-        #news-section .news-card { @apply card card-hover flex flex-col; } /* Use E-Waste card base */
-        #news-section .news-card img { @apply rounded-t-lg; } /* Match card border-radius */
-        #news-section .news-card .news-content { @apply p-5 flex flex-col flex-grow; }
-        #news-section .news-card .date { @apply block text-xs text-neutral-medium mb-2; } /* Neutral medium for muted text */
-        #news-section .news-card h4 { @apply text-lg font-semibold text-primary-dark mb-2 leading-snug flex-grow; } /* Primary dark heading */
-        #news-section .news-card h4 a { @apply text-inherit hover:text-primary; } /* Primary color on hover */
-        #news-section .news-card p { @apply text-sm text-neutral mb-4 leading-relaxed; } /* Neutral text */
-         #news-section .news-card .read-more-action { @apply mt-auto pt-3 border-t border-gray-200; } /* Border style */
-
-        /* How to Join / Get Involved Section - Adapting Blood/E-Waste form section style */
-         #volunteer-section { @apply animated-gradient-accent-bg text-white relative; } /* Use accent gradient utility */
-         #volunteer-section::before { content:''; @apply absolute inset-0 bg-black/25 z-0;} /* Darkening overlay */
-         #volunteer-section .section-title, #volunteer-section .section-title::after { @apply relative z-10; } /* Ensure title is above overlay */
-         #volunteer-section .section-title::after { @apply !bg-primary; } /* Primary underline for Volunteer title */
-         #volunteer-section form { @apply relative z-10; } /* Ensure form is above overlay */
-
-         /* Override form input colors for dark/gradient sections */
-         #volunteer-section input[type="text"], #volunteer-section input[type="email"], #volunteer-section input[type="tel"], #volunteer-section input[type="number"], #volunteer-section input[type="date"], #volunteer-section select, #volunteer-section textarea {
-             @apply !bg-white/10 !border-gray-400/40 !text-white placeholder:!text-gray-300/60 focus:!bg-white/20 focus:!border-white focus:!ring-white/50;
-         }
-         #volunteer-section label { @apply !text-gray-200; }
-         #volunteer-section .text-xs.text-gray-300 { @apply !text-gray-300; } /* Ensure small text color is right */
-          #volunteer-section .form-input-error { @apply !border-red-400 !ring-red-400/60 focus:!border-red-400 focus:!ring-red-400/60; } /* Error state for inverted inputs */
-
-         /* Gallery (Simple styling) */
-         #gallery-section { @apply bg-white; } /* White background */
-         .gallery-item img { @apply transition-all duration-400 ease-in-out group-hover:scale-105 group-hover:brightness-110 filter group-hover:contrast-110; } /* Kept original index hover effect */
+         /* No Camps Message - Adapting E-Waste info box style */
+         .no-camps-message { @apply bg-info-light p-6 rounded-lg shadow-md border-l-4 border-info text-center max-w-2xl mx-auto flex flex-col items-center animate-fade-in-scale; }
+         .no-camps-message i { @apply text-5xl text-info mb-4; }
+         .no-camps-message h3 { @apply text-info text-xl !mt-0 mb-2; }
+         .no-camps-message p { @apply text-neutral text-base mb-0; }
+         .no-camps-message a { @apply font-semibold underline text-primary hover:text-primary-dark; }
 
 
-         /* Associates (Simple styling) */
-         #associates { @apply bg-neutral-light; } /* Light background */
-         .associate-logo img { @apply filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100; } /* Kept effect */
-         .associate-logo p { @apply text-xs font-medium text-neutral group-hover:text-primary transition-colors; } /* Primary color on hover */
+        /* Blood Facts Cards - Adapting E-Waste item list/card grid style */
+        #blood-facts .fact-card { @apply card bg-primary/5 flex flex-col items-center text-center p-4 transition-transform duration-300 hover:scale-105; }
+        #blood-facts .fact-icon { @apply text-4xl mb-3 text-primary; }
+        #blood-facts .fact-text { @apply text-sm font-medium text-neutral-dark; }
 
 
-         /* Donation CTA Section - Adapting Blood/E-Waste section style */
-          #donate-section { @apply animated-gradient-primary-bg text-white relative text-center overflow-hidden; } /* Use primary gradient utility */
-          #donate-section::before { content:''; @apply absolute inset-0 bg-black/35 z-0;} /* Darkening overlay */
-          #donate-section .section-title, #donate-section .section-title::after { @apply !text-white relative z-10; } /* Ensure title is above overlay */
-          #donate-section .section-title::after { @apply !bg-accent/70; } /* Accent underline for Donate title */
-          #donate-section > div { @apply relative z-10; } /* Ensure content is above overlay */
-          #donate-section .fa-donate { @apply text-4xl text-white bg-accent p-4 rounded-full shadow-lg mb-6 inline-block animate-bounce-subtle; } /* Accent icon bg */
-          #donate-section .bg-black\/25 { @apply dark:bg-black/50; } /* Ensure dark mode works for this specific element if re-added */
+        /* Contact Info Section - Simple styling like E-Waste contact */
+        #contact-info .contact-block { @apply text-neutral-dark text-lg; }
+        #contact-info .contact-block p { @apply mb-3 flex items-center justify-center gap-3; }
+         #contact-info .contact-block p i { @apply text-primary text-2xl w-6 text-center flex-shrink-0; }
+         #contact-info .contact-block p strong { @apply text-primary-dark font-semibold; }
+         #contact-info .contact-block a { @apply font-semibold text-primary hover:text-primary-dark underline; }
 
 
-        /* Contact Section - Adapting E-Waste form section style */
-         #contact { @apply bg-secondary; } /* Secondary (gray) background */
-         #contact .contact-info-item { @apply flex items-start gap-4 text-neutral; } /* Neutral text for info */
-         #contact .contact-info-item i { @apply text-primary text-lg mt-1 w-5 text-center flex-shrink-0; } /* Primary color for icons */
-         #contact .registration-info { @apply bg-neutral-light p-4 rounded-md border border-gray-200 text-xs text-neutral mt-8 shadow-inner;} /* Light neutral background */
-         #contact .registration-info h4 { @apply text-sm font-semibold text-primary-dark mb-2; } /* Primary dark heading */
+        /* Footer - Matching E-Waste style */
+        footer { @apply bg-primary-dark text-gray-300 pt-12 pb-8 mt-12; }
+        footer .container { @apply text-center px-4; }
+        footer .logo-text { @apply text-2xl font-black text-white hover:text-gray-300 font-heading leading-none; }
+        footer nav { @apply mb-4 text-sm space-x-4; }
+        footer nav a { @apply hover:text-white hover:underline; }
+        footer .footer-bottom p { @apply text-xs text-gray-500 mt-1; }
+        footer .footer-bottom a { @apply hover:text-white hover:underline; }
 
-
-         /* Footer - Matching E-Waste style */
-         footer { @apply bg-primary-dark text-gray-300 pt-12 pb-8 mt-12 border-t-4 border-accent; } /* Dark primary bg, Accent border */
-         footer .footer-heading { @apply text-lg font-semibold text-white mb-5 relative pb-2; }
-         footer .footer-heading::after { @apply content-[''] absolute bottom-0 left-0 w-10 h-0.5 bg-primary rounded-full; } /* Primary underline */
-         footer .footer-link { @apply text-gray-400 hover:text-white hover:underline text-sm transition-colors duration-200; }
-         footer ul.footer-links li { @apply mb-1.5; }
-         footer ul.footer-links li a { @apply footer-link inline-flex items-center gap-1.5; }
-         footer ul.footer-links i { @apply opacity-70; }
-         footer address p { @apply mb-3 flex items-start gap-3 text-gray-400; } /* Gray 400 for address text */
-         footer address i { @apply text-primary mt-1 w-4 text-center flex-shrink-0; } /* Primary color for icons */
-         .footer-social-icon { @apply text-xl transition duration-300 text-gray-400 hover:scale-110; }
-         .footer-bottom { @apply border-t border-gray-700/50 pt-8 mt-12 text-center text-sm text-gray-500; }
-
-        /* Back to Top Button - Matching E-Waste/Blood page */
-         #back-to-top { @apply fixed bottom-6 right-6 z-[60] p-3 rounded-full bg-accent text-white shadow-lg hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent opacity-0 invisible transition-all duration-300 hover:scale-110 active:scale-95; } /* Accent color */
-         #back-to-top.visible { @apply opacity-100 visible; }
-
-         /* Modal Styles - Matching E-Waste/Blood page style ideas */
-         .modal-container { @apply fixed inset-0 bg-black/70 z-[100] hidden items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300 ease-out; } /* Reduced blur, removed dark mode */
-         .modal-container.flex { @apply flex; opacity: 1; }
-         .modal-container.hidden { @apply hidden; opacity: 0; }
-
-         .modal-box { @apply bg-white rounded-lg shadow-xl p-6 md:p-8 w-full max-w-lg text-left relative transform transition-all duration-300 scale-95 opacity-0; }
-         .modal-container.flex .modal-box { @apply scale-100 opacity: 100; }
-
-         #bank-details-modal h3 { @apply !text-primary !mt-0 mb-5 border-b border-gray-200 pb-3; } /* Primary title */
-         .modal-content-box { @apply bg-neutral-light p-4 rounded-md border border-gray-200 space-y-2 my-5 text-sm text-neutral; } /* Neutral text */
-         .modal-content-box p strong { @apply font-medium text-primary-dark; } /* Primary dark text */
-         .modal-footer-note { @apply text-xs text-neutral text-center mt-6 italic; }
-         .close-button { @apply absolute top-4 right-4 text-neutral hover:text-danger p-1 rounded-full transition-colors focus-visible:ring-accent; } /* Neutral text, Danger on hover, Accent ring */
     </style>
-    <!-- Schema.org JSON-LD (Keep - Update details) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org", "@type": "NGO", "name": "PAHAL NGO",
-      "url": "https://your-pahal-domain.com/", "logo": "https://your-pahal-domain.com/icon.webp",
-      "description": "PAHAL is a voluntary youth organization in Jalandhar dedicated to holistic personality development, community service, and fostering positive change in health, education, environment, and communication.",
-      "address": {"@type": "PostalAddress", "streetAddress": "36 New Vivekanand Park, Maqsudan", "addressLocality": "Jalandhar", "addressRegion": "Punjab", "postalCode": "144008", "addressCountry": "IN" },
-      "contactPoint": [
-           { "@type": "ContactPoint", "telephone": "+91-181-2672784", "contactType": "general" },
-           { "@type": "ContactPoint", "telephone": "+91-9855614230", "contactType": "general" },
-           { "@type": "ContactPoint", "email": "engage@pahal-ngo.org", "contactType": "customer service" }
-      ],
-      "sameAs": [
-           "https://www.instagram.com/yourpahal", /* CHANGE */
-           "https://www.facebook.com/yourpahal", /* CHANGE */
-           "https://twitter.com/yourpahal", /* CHANGE */
-           "https://www.linkedin.com/company/yourpahal" /* CHANGE */
-       ]
-    }
-    </script>
 </head>
-<body class="bg-secondary text-neutral-dark font-sans pt-[70px]"> <!-- Use secondary bg, neutral dark text, and add padding for fixed header -->
+<body class="pt-[70px]">
 
-<!-- Header -->
-<header id="main-header" class="py-2 md:py-0">
-    <div class="container mx-auto flex flex-wrap items-center justify-between">
-         <div class="logo flex-shrink-0 py-2">
-             <a href="#hero" aria-label="PAHAL NGO Home" class="text-3xl md:text-4xl font-black text-primary font-heading leading-none flex items-center transition-opacity hover:opacity-80">
-                <img src="icon.webp" alt="" class="h-9 w-9 mr-2 inline object-contain animate-pulse-slow" aria-hidden="true"> <!-- Subtle pulse on logo -->
-                PAHAL
-             </a>
-             <p class="text-xs text-neutral -mt-1.5 ml-11 hidden sm:block">An Endeavour for a Better Tomorrow</p> <!-- Neutral text color -->
-        </div>
-        <button id="mobile-menu-toggle" aria-label="Toggle Menu" aria-expanded="false" aria-controls="navbar" class="menu-toggle lg:hidden p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md">
-            <span class="sr-only">Open menu</span> <span></span> <span></span> <span></span>
-        </button>
-        <nav id="navbar" aria-label="Main Navigation" class="navbar-container"> <!-- Use class for JS targeting -->
-            <ul class="flex flex-col lg:flex-row lg:items-center lg:space-x-5 xl:space-x-6 py-4 lg:py-0 px-4 lg:px-0">
-                <li><a href="#hero" class="nav-link active group">Home</a></li>
-                <li><a href="#profile" class="nav-link group">Profile</a></li>
-                <li><a href="#objectives" class="nav-link group">Objectives</a></li>
-                <li><a href="#areas-focus" class="nav-link group">Focus Areas</a></li>
-                <li><a href="#news-section" class="nav-link group">News</a></li>
-                <li><a href="#volunteer-section" class="nav-link group">Get Involved</a></li>
-                <li><a href="blood-donation.php" class="nav-link group">Blood Drive</a></li>
-                <li><a href="e-waste.php" class="nav-link group">E-Waste</a></li>
-                <li><a href="#contact" class="nav-link group">Contact</a></li>
-                <!-- Removed Theme Toggle Button -->
-            </ul>
-        </nav>
-    </div>
-</header>
+    <!-- Header - Matching E-Waste style -->
+    <header id="main-header">
+       <div class="container mx-auto flex flex-wrap items-center justify-between">
+            <!-- Logo -->
+            <div class="logo flex-shrink-0">
+               <a href="index.php#hero" aria-label="PAHAL NGO Home" class="text-3xl font-black text-primary font-heading leading-none flex items-center">
+                 <img src="icon.webp" alt="PAHAL Icon" class="h-8 w-8 mr-2"> PAHAL
+                </a>
+           </div>
+           <!-- Navigation - Matching E-Waste structure -->
+           <nav aria-label="Site Navigation">
+                <a href="index.php" class="text-primary hover:text-primary-dark font-semibold px-3 py-2 transition-colors">Home</a>
+               <a href="e-waste.php" class="text-primary hover:text-primary-dark font-semibold px-3 py-2 transition-colors">E-Waste</a>
+                <a href="index.php#contact" class="text-primary hover:text-primary-dark font-semibold px-3 py-2 transition-colors">Contact</a>
+           </nav>
+       </div>
+    </header>
 
-<main>
-    <!-- Hero Section -->
-    <section id="hero" class="relative">
-        <!-- Background overlay removed, using animated gradient directly -->
-        <div class="container mx-auto relative z-10 flex flex-col-reverse lg:flex-row items-center justify-between gap-10 text-center lg:text-left">
-             <div class="hero-text flex-1 order-2 lg:order-1 flex flex-col items-center lg:items-start justify-center text-center lg:text-left animate-on-scroll fade-in-left">
-              <h1 class="font-heading !text-white"> <!-- Ensure white text -->
-                 Empowering Communities,<br> Inspiring Change
-              </h1>
-              <p class="lead text-lg lg:text-xl my-6 max-w-xl mx-auto lg:mx-0 text-gray-200 drop-shadow-md">
-                Join PAHAL, a youth-driven NGO in Jalandhar, committed to holistic development and tangible social impact through dedicated action in health, education, environment, and communication.
-              </p>
-              <div class="mt-8 flex flex-wrap justify-center lg:justify-start gap-4">
-                <a href="#profile" class="btn btn-light text-base md:text-lg shadow-lg"><i class="fas fa-info-circle"></i>Discover More</a>
-                 <a href="#volunteer-section" class="btn btn-primary text-base md:text-lg shadow-lg"><i class="fas fa-hands-helping"></i>Get Involved</a>
-              </div>
-            </div>
-            <div class="hero-logo order-1 lg:order-2 flex-shrink-0 w-[180px] lg:w-auto animate-on-scroll fade-in-right animate-delay-200">
-                 <img src="icon.webp" alt="PAHAL NGO Large Logo Icon" class="mx-auto w-36 h-36 md:w-48 md:h-48 lg:w-60 lg:h-60 rounded-full shadow-2xl bg-white/25 p-3 backdrop-blur-sm"> <!-- Increased padding/bg alpha -->
-            </div>
-        </div>
-        <div class="hero-scroll-indicator">
-             <a href="#profile" aria-label="Scroll down"><i class="fas fa-chevron-down"></i></a>
-        </div>
-    </section>
-
-    <!-- Profile Section -->
-    <section id="profile" class="section-padding bg-secondary"> <!-- Use secondary background -->
-        <div class="container mx-auto animate-on-scroll fade-in-up">
-             <h2 class="section-title section-title-underline">Our Profile & Vision</h2>
-             <div class="grid md:grid-cols-5 gap-12 items-center mt-16">
-                 <div class="md:col-span-3 profile-text">
-                    <h3 class="text-2xl mb-4 !text-primary-dark">Who We Are</h3> <!-- Primary dark heading -->
-                    <p class="mb-6 text-neutral text-lg">'PAHAL' (Initiative) stands as a testament to collective action... driven by a singular vision: to catalyze perceptible, positive transformation within our social fabric.</p> <!-- Neutral text -->
-                    <blockquote><p>"PAHAL is an endeavour for a Better Tomorrow"</p></blockquote>
-                    <h3 class="text-2xl mb-4 mt-10 !text-primary-dark">Our Core Vision</h3> <!-- Primary dark heading -->
-                    <p class="text-neutral text-lg">We aim to cultivate <strong class="text-primary font-medium">Holistic Personality Development</strong>... thereby building a more compassionate and equitable world.</p> <!-- Primary text highlight -->
+    <main>
+        <!-- Hero Section - Adapting E-Waste hero style -->
+        <section id="hero-blood" class="animate-fade-in-scale">
+             <div class="container mx-auto relative z-10 max-w-4xl">
+                 <div class="icon-drop"><i class="fas fa-tint drop-shadow-lg"></i></div>
+                 <h1 class="mb-4 animate-fade-in-scale animation-delay-100">Donate Blood, Give the Gift of Life</h1>
+                 <p class="lead animate-fade-in-scale animation-delay-200">Join PAHAL's mission to ensure a readily available and safe blood supply for our community in Jalandhar. Your generosity makes a profound difference.</p>
+                 <div class="cta-buttons mt-8 animate-fade-in-scale animation-delay-300">
+                     <!-- Button classes using E-Waste definitions -->
+                     <a href="#donor-registration" class="btn btn-secondary"><i class="fas fa-user-plus"></i> Register as Donor</a>
+                     <a href="#request-blood" class="btn btn-accent"><i class="fas fa-ambulance"></i> Request Blood Assistance</a>
                  </div>
-                 <div class="md:col-span-2 profile-image animate-on-scroll fade-in-right animate-delay-200">
-                    <img src="https://via.placeholder.com/500x600.png/2E7D32/F9FAFB?text=PAHAL+Vision" alt="PAHAL NGO team vision" class="rounded-lg shadow-xl mx-auto w-full object-cover h-full max-h-[500px] border-4 border-white"> <!-- Updated placeholder image colors, border -->
+             </div>
+        </section>
+
+        <!-- Informational Section Grid - Adapting E-Waste section/card style -->
+        <section class="section-padding bg-white">
+            <div class="container mx-auto">
+                <h2 class="section-title">Understanding Blood Donation</h2>
+                <div class="grid md:grid-cols-2 gap-8 mt-12">
+                    <!-- Why Donate? -->
+                    <div class="card animate-slide-up animation-delay-100">
+                         <h3 class="!mt-0 flex items-center gap-2 text-primary-dark"><i class="fas fa-heart-pulse text-3xl text-danger"></i>Why Your Donation Matters</h3>
+                         <p class="text-neutral">Blood is a critical resource, constantly needed for surgeries, accident victims, cancer patients, and individuals with blood disorders like Thalassemia. It cannot be artificially created, relying solely on volunteer donors.</p>
+                         <!-- Use E-Waste checkmark list style -->
+                         <ul class="checkmark-list mt-4 text-sm text-neutral">
+                             <li>Directly saves lives in emergencies and medical treatments.</li>
+                            <li>Supports patients undergoing long-term therapies (e.g., chemotherapy).</li>
+                            <li>Crucial component for maternal care during childbirth complications.</li>
+                            <li>Represents a vital act of community solidarity and support.</li>
+                         </ul>
+                         <p class="mt-6 font-semibold text-danger text-lg border-t border-gray-200 pt-4">Be a lifeline. Your single donation can impact multiple lives.</p>
+                    </div>
+
+                    <!-- Who Can Donate? -->
+                    <div class="card animate-slide-up animation-delay-200">
+                        <h3 class="text-primary !mt-0 flex items-center gap-2"><i class="fas fa-user-check text-3xl text-primary"></i>Eligibility Essentials</h3>
+                        <p class="text-neutral">Ensuring the safety of both donors and recipients is paramount. General guidelines include:</p>
+                        <div class="grid sm:grid-cols-2 gap-x-6 gap-y-4 mt-5">
+                            <div>
+                                 <h4 class="text-lg text-primary-dark mb-2 flex items-center gap-2"><i class="fas fa-check text-green-500"></i>Likely CAN donate if:</h4>
+                                 <ul class="text-neutral text-sm space-y-1.5">
+                                    <li class="flex items-center gap-2"><i class="fas fa-calendar-alt text-primary"></i> Are 18-65 years old.</li>
+                                    <li class="flex items-center gap-2"><i class="fas fa-weight-hanging text-primary"></i> Weigh ≥ 50 kg (110 lbs).</li>
+                                    <li class="flex items-center gap-2"><i class="fas fa-heart text-primary"></i> Are in good general health.</li>
+                                    <li class="flex items-center gap-2"><i class="fas fa-tint text-primary"></i> Meet hemoglobin levels (checked at site).</li>
+                                </ul>
+                            </div>
+                             <div>
+                                <h4 class="text-lg text-primary-dark mb-2 flex items-center gap-2"><i class="fas fa-exclamation-triangle text-accent"></i>Consult staff if you:</h4>
+                                 <ul class="text-neutral text-sm space-y-1.5">
+                                    <li class="flex items-center gap-2"><i class="fas fa-pills text-accent"></i> Take certain medications.</li>
+                                    <li class="flex items-center gap-2"><i class="fas fa-procedures text-accent"></i> Have specific medical conditions.</li>
+                                    <li class="flex items-center gap-2"><i class="fas fa-plane text-accent"></i> Traveled internationally recently.</li>
+                                    <li class="flex items-center gap-2"><i class="fas fa-calendar-minus text-accent"></i> Donated blood recently.</li>
+                                 </ul>
+                             </div>
+                        </div>
+                        <p class="text-xs text-neutral mt-6 pt-4 border-t border-gray-200"><i class="fas fa-info-circle mr-1"></i> Final eligibility is always confirmed via a confidential screening at the donation site.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr>
+
+        <!-- Donor Registration Section - Adapting E-Waste form section style -->
+        <section id="donor-registration" class="section-padding bg-primary/5">
+            <div class="container mx-auto">
+                <h2 class="section-title"><i class="fas fa-user-plus mr-2"></i>Become a Registered Donor</h2>
+                 <p class="text-center max-w-3xl mx-auto mb-10 text-lg text-neutral">Join our network of heroes! Registering allows us to contact you when your blood type is needed or for upcoming camps. Your information is kept confidential and used solely for donation purposes.</p>
+
+                 <div class="form-section max-w-4xl mx-auto animate-slide-up">
+                     <h3 class="text-2xl mb-6 text-center font-semibold text-primary">Submit Your Registration</h3>
+                     <!-- Form Status Message - Uses helper, restyled by CSS now -->
+                     <?= get_form_status_html('donor_registration_form') ?>
+
+                     <form id="donor-registration-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#donor-registration" method="POST" class="space-y-6 w-full">
+                         <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                         <input type="hidden" name="form_id" value="donor_registration_form">
+                         <div class="honeypot-field" aria-hidden="true">
+                             <label for="contact_preference_blood_donor">Keep This Blank</label>
+                             <input type="text" id="contact_preference_blood_donor" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
+                         </div>
+
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                 <label for="donor_name" class="required">Full Name</label>
+                                 <input type="text" id="donor_name" name="donor_name" required value="<?= $donor_reg_name_value ?>" aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_name') ?>" placeholder="e.g., Priya Sharma" <?= get_aria_describedby('donor_registration_form', 'donor_name') ?>>
+                                 <?= get_field_error_html('donor_registration_form', 'donor_name') ?>
+                            </div>
+                             <div>
+                                 <label for="donor_dob" class="required">Date of Birth</label>
+                                 <input type="date" id="donor_dob" name="donor_dob" required value="<?= $donor_reg_dob_value ?>" aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_dob') ?>" max="<?= date('Y-m-d') ?>" <?= get_aria_describedby('donor_registration_form', 'donor_dob') ?>>
+                                 <p class="text-xs text-gray-500 mt-1" id="donor_dob_hint">YYYY-MM-DD. Must be 18-65 yrs.</p>
+                                 <?= get_field_error_html('donor_registration_form', 'donor_dob') ?>
+                            </div>
+                         </div>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                 <label for="donor_email" class="required">Email Address</label>
+                                 <input type="email" id="donor_email" name="donor_email" required value="<?= $donor_reg_email_value ?>" aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_email') ?>" placeholder="e.g., priya.sharma@email.com" <?= get_aria_describedby('donor_registration_form', 'donor_email') ?>>
+                                 <?= get_field_error_html('donor_registration_form', 'donor_email') ?>
+                            </div>
+                             <div>
+                                 <label for="donor_phone" class="required">Mobile Number</label>
+                                 <input type="tel" id="donor_phone" name="donor_phone" required value="<?= $donor_reg_phone_value ?>" aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_phone') ?>" placeholder="e.g., 98xxxxxxxx" <?= get_aria_describedby('donor_registration_form', 'donor_phone') ?>>
+                                 <?= get_field_error_html('donor_registration_form', 'donor_phone') ?>
+                            </div>
+                         </div>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                 <label for="donor_blood_group" class="required">Blood Group</label>
+                                 <select id="donor_blood_group" name="donor_blood_group" required aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_blood_group') ?>" <?= get_aria_describedby('donor_registration_form', 'donor_blood_group') ?>>
+                                     <option value="" disabled <?= empty($donor_reg_blood_group_value) ? 'selected' : '' ?>>-- Select Blood Group --</option>
+                                     <?php foreach($blood_types as $type): ?>
+                                         <option value="<?= $type ?>" <?= ($donor_reg_blood_group_value === $type) ? 'selected' : '' ?>><?= $type ?></option>
+                                     <?php endforeach; ?>
+                                 </select>
+                                 <?= get_field_error_html('donor_registration_form', 'donor_blood_group') ?>
+                             </div>
+                             <div>
+                                 <label for="donor_location" class="required">Location (Area/City)</label>
+                                 <input type="text" id="donor_location" name="donor_location" required value="<?= $donor_reg_location_value ?>" aria-required="true" class="<?= get_field_error_class('donor_registration_form', 'donor_location') ?>" placeholder="e.g., Maqsudan, Jalandhar" <?= get_aria_describedby('donor_registration_form', 'donor_location') ?>>
+                                 <?= get_field_error_html('donor_registration_form', 'donor_location') ?>
+                             </div>
+                         </div>
+                         <div class="mt-6 pt-4 border-t border-gray-200">
+                             <label for="donor_consent" class="flex items-center space-x-3 cursor-pointer p-3 rounded-md hover:bg-primary/5 transition-colors">
+                                 <input type="checkbox" id="donor_consent" name="donor_consent" value="yes" required aria-required="true" <?= $donor_reg_consent_value ? 'checked' : '' ?> class="h-5 w-5 shrink-0" <?= get_aria_describedby('donor_registration_form', 'donor_consent') ?>>
+                                 <span class="text-sm text-neutral">I consent to PAHAL contacting me via Phone/Email regarding blood donation needs or upcoming camps. I understand this registration does not guarantee eligibility, which will be confirmed at the donation site.</span>
+                             </label>
+                             <?= get_field_error_html('donor_registration_form', 'donor_consent') ?>
+                        </div>
+                         <div class="pt-5 text-center">
+                             <button type="submit" class="btn btn-secondary w-full sm:w-auto">
+                                 <span class="button-text flex items-center justify-center"><i class="fas fa-check-circle mr-2"></i>Register Now</span>
+                             </button>
+                         </div>
+                     </form>
                 </div>
              </div>
-        </div>
-    </section>
+         </section>
 
-    <!-- Objectives Section -->
-     <section id="objectives" class="section-padding bg-neutral-light"> <!-- Use neutral light background -->
-        <div class="container mx-auto">
-             <h2 class="section-title section-title-underline">Our Guiding Objectives</h2>
-             <div class="max-w-6xl mx-auto grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-16">
-                 <div class="objective-item group animate-on-scroll fade-in-up"><i class="fas fa-users"></i><p>To collaborate genuinely <strong>with and among the people</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up animate-delay-100"><i class="fas fa-people-carry"></i><p>To engage in <strong>creative & constructive social action</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up animate-delay-200"><i class="fas fa-lightbulb"></i><p>To enhance knowledge of <strong>self & community realities</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up animate-delay-300"><i class="fas fa-seedling"></i><p>To apply scholarship for <strong>mitigating social problems</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up animate-delay-400"><i class="fas fa-tools"></i><p>To gain and apply skills in <strong>humanity development</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up animate-delay-500"><i class="fas fa-recycle"></i><p>To promote <strong>sustainable practices</strong> & awareness.</p></div>
-            </div>
-        </div>
-    </section>
+        <hr>
 
-    <!-- Areas of Focus Section -->
-    <section id="areas-focus" class="section-padding bg-white"> <!-- Use white background -->
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Our Key Focus Areas</h2>
-             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-16">
-                 <!-- Health -->
-                 <a href="blood-donation.php" title="Health Initiatives" class="focus-item group animate-on-scroll fade-in-up card-hover">
-                     <span class="icon"><i class="fas fa-heart-pulse"></i></span> <h3>Health & Wellness</h3>
-                     <p>Prioritizing community well-being via awareness campaigns, blood drives, and promoting healthy lifestyles.</p>
-                     <span class="read-more-link">Blood Donation Program <i class="fas fa-arrow-right text-xs ml-1 opacity-0 group-hover:opacity-100 translate-x-[-5px] group-hover:translate-x-0 transition-all duration-300"></i></span>
-                 </a>
-                 <!-- Education -->
-                 <div class="focus-item group animate-on-scroll fade-in-up animate-delay-100 card-hover">
-                     <span class="icon"><i class="fas fa-user-graduate"></i></span> <h3>Education & Skilling</h3>
-                     <p>Empowering youth by fostering ethical foundations, essential life skills, and professional readiness.</p>
-                     <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span>
-                  </div>
-                 <!-- Environment -->
-                 <a href="e-waste.php" title="E-waste Recycling" class="focus-item group animate-on-scroll fade-in-up animate-delay-200 card-hover">
-                      <span class="icon"><i class="fas fa-leaf"></i></span> <h3>Environment</h3>
-                      <p>Championing stewardship through plantation drives, waste management, and e-waste recycling.</p>
-                      <span class="read-more-link">E-Waste Program <i class="fas fa-arrow-right text-xs ml-1 opacity-0 group-hover:opacity-100 translate-x-[-5px] group-hover:translate-x-0 transition-all duration-300"></i></span>
-                 </a>
-                 <!-- Communication -->
-                 <div class="focus-item group animate-on-scroll fade-in-up animate-delay-300 card-hover">
-                     <span class="icon"><i class="fas fa-comments"></i></span> <h3>Communication Skills</h3>
-                     <p>Enhancing verbal, non-verbal, and presentation abilities in youth via interactive programs.</p>
-                      <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span>
-                 </div>
+        <!-- Blood Request Section - Adapting E-Waste form section style -->
+        <section id="request-blood" class="section-padding">
+             <div class="container mx-auto">
+                <h2 class="section-title text-danger"><i class="fas fa-first-aid mr-2"></i>Request Blood Assistance</h2>
+                 <p class="text-center max-w-3xl mx-auto mb-6 text-lg text-neutral">If you or someone you know requires blood urgently or for a planned procedure, please submit a request. PAHAL will try to connect you with registered donors or guide you to local blood banks.</p>
+                 <!-- Disclaimer Box - Adapting E-Waste info box style -->
+                 <div class="text-center max-w-3xl mx-auto mb-10 text-sm font-semibold text-red-800 bg-red-100 p-4 rounded-lg border border-red-400 shadow-md"><i class="fas fa-exclamation-triangle mr-2"></i> <strong>Disclaimer:</strong> PAHAL acts as a facilitator and does not operate a blood bank directly. Availability depends on donor responses and blood bank stocks. For critical emergencies, please contact hospitals/blood banks directly first.</div>
+
+                 <div class="form-section max-w-4xl mx-auto !border-danger animate-slide-up">
+                      <h3 class="text-2xl mb-6 text-center font-semibold text-primary">Submit Your Request</h3>
+                      <!-- Form Status Message - Uses helper, restyled by CSS now -->
+                      <?= get_form_status_html('blood_request_form') ?>
+                    <form id="blood-request-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#request-blood" method="POST" class="space-y-6 w-full">
+                         <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                        <input type="hidden" name="form_id" value="blood_request_form">
+                         <div class="honeypot-field" aria-hidden="true">
+                             <label for="contact_preference_blood_req">Keep This Blank</label>
+                             <input type="text" id="contact_preference_blood_req" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
+                         </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="request_patient_name" class="required">Patient's Full Name</label>
+                                <input type="text" id="request_patient_name" name="request_patient_name" required value="<?= $blood_req_patient_name_value ?>" aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_patient_name') ?>" <?= get_aria_describedby('blood_request_form', 'request_patient_name') ?>>
+                                <?= get_field_error_html('blood_request_form', 'request_patient_name') ?>
+                            </div>
+                             <div>
+                                 <label for="request_blood_group" class="required">Blood Group Needed</label>
+                                 <select id="request_blood_group" name="request_blood_group" required aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_blood_group') ?>" <?= get_aria_describedby('blood_request_form', 'request_blood_group') ?>>
+                                     <option value="" disabled <?= empty($blood_req_blood_group_value) ? 'selected' : '' ?>>-- Select Blood Group --</option>
+                                     <?php foreach($blood_types as $type): ?>
+                                         <option value="<?= $type ?>" <?= ($blood_req_blood_group_value === $type) ? 'selected' : '' ?>><?= $type ?></option>
+                                     <?php endforeach; ?>
+                                 </select>
+                                 <?= get_field_error_html('blood_request_form', 'request_blood_group') ?>
+                            </div>
+                         </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                 <label for="request_units" class="required">Units Required</label>
+                                 <input type="number" id="request_units" name="request_units" required value="<?= $blood_req_units_value ?>" min="1" max="20" step="1" aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_units') ?>" placeholder="e.g., 2" <?= get_aria_describedby('blood_request_form', 'request_units') ?>>
+                                 <?= get_field_error_html('blood_request_form', 'request_units') ?>
+                            </div>
+                            <div>
+                                <label for="request_urgency" class="required">Urgency</label>
+                                <select id="request_urgency" name="request_urgency" required aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_urgency') ?>" <?= get_aria_describedby('blood_request_form', 'request_urgency') ?>>
+                                    <option value="" disabled <?= empty($blood_req_urgency_value) ? 'selected' : '' ?>>-- Select Urgency --</option>
+                                    <option value="Emergency (Immediate)" <?= ($blood_req_urgency_value === 'Emergency (Immediate)') ? 'selected' : '' ?>>Emergency (Immediate)</option>
+                                    <option value="Urgent (Within 24 Hours)" <?= ($blood_req_urgency_value === 'Urgent (Within 24 Hours)') ? 'selected' : '' ?>>Urgent (Within 24 Hours)</option>
+                                    <option value="Within 2-3 Days" <?= ($blood_req_urgency_value === 'Within 2-3 Days') ? 'selected' : '' ?>>Within 2-3 Days</option>
+                                    <option value="Planned (Within 1 Week)" <?= ($blood_req_urgency_value === 'Planned (Within 1 Week)') ? 'selected' : '' ?>>Planned (Within 1 Week)</option>
+                                </select>
+                                <?= get_field_error_html('blood_request_form', 'request_urgency') ?>
+                            </div>
+                        </div>
+                         <div>
+                             <label for="request_hospital" class="required">Hospital Name & Location</label>
+                             <input type="text" id="request_hospital" name="request_hospital" required value="<?= $blood_req_hospital_value ?>" aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_hospital') ?>" placeholder="e.g., Civil Hospital, Jalandhar" <?= get_aria_describedby('blood_request_form', 'request_hospital') ?>>
+                             <?= get_field_error_html('blood_request_form', 'request_hospital') ?>
+                         </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                 <label for="request_contact_person" class="required">Contact Person (Attendant)</label>
+                                 <input type="text" id="request_contact_person" name="request_contact_person" required value="<?= $blood_req_contact_person_value ?>" aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_contact_person') ?>" placeholder="e.g., Attendant's Name" <?= get_aria_describedby('blood_request_form', 'request_contact_person') ?>>
+                                 <?= get_field_error_html('blood_request_form', 'request_contact_person') ?>
+                             </div>
+                             <div>
+                                 <label for="request_contact_phone" class="required">Contact Phone</label>
+                                 <input type="tel" id="request_contact_phone" name="request_contact_phone" required value="<?= $blood_req_contact_phone_value ?>" aria-required="true" class="<?= get_field_error_class('blood_request_form', 'request_contact_phone') ?>" <?= get_aria_describedby('blood_request_form', 'request_contact_phone') ?>>
+                                 <?= get_field_error_html('blood_request_form', 'request_contact_phone') ?>
+                             </div>
+                         </div>
+                         <div>
+                             <label for="request_message" class="form-label">Additional Info (Optional)</label>
+                             <textarea id="request_message" name="request_message" rows="4" class="<?= get_field_error_class('blood_request_form', 'request_message') ?>" placeholder="e.g., Patient condition, doctor's name, specific timing needs..." <?= get_aria_describedby('blood_request_form', 'request_message') ?>><?= $blood_req_message_value ?></textarea>
+                             <?= get_field_error_html('blood_request_form', 'request_message') ?>
+                         </div>
+                         <div class="pt-5 text-center">
+                             <button type="submit" class="btn btn-accent w-full sm:w-auto">
+                                 <span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Submit Request</span>
+                             </button>
+                         </div>
+                     </form>
+                </div>
              </div>
-        </div>
-    </section>
+         </section>
 
-    <!-- How to Join / Get Involved Section -->
-     <section id="volunteer-section" class="section-padding text-white relative animated-gradient-accent-bg">
-        <div class="absolute inset-0 bg-black/30 mix-blend-multiply z-0"></div> <!-- Darkening Overlay -->
-        <div class="container mx-auto relative z-10">
-             <h2 class="section-title !text-white section-title-underline after:!bg-primary">Join the PAHAL Movement</h2> <!-- Primary underline for Volunteer title -->
-            <div class="grid lg:grid-cols-2 gap-12 items-center mt-16">
-                <!-- Info Text -->
-                <div class="text-center lg:text-left animate-on-scroll fade-in-left">
-                    <h3 class="text-3xl lg:text-4xl font-bold mb-4 text-white leading-snug drop-shadow-md">Make a Difference, Volunteer With Us</h3>
-                    <p class="text-gray-200 max-w-3xl mx-auto lg:mx-0 mb-6 text-lg leading-relaxed drop-shadow-sm">PAHAL welcomes passionate individuals... Your time, skills, and dedication are invaluable assets.</p>
-                    <p class="text-gray-200 max-w-3xl mx-auto lg:mx-0 mb-8 text-lg leading-relaxed drop-shadow-sm">Volunteering offers a rewarding experience... Express your interest below!</p>
-                     <div class="mt-10 flex flex-wrap justify-center lg:justify-start gap-4">
-                         <a href="#contact" class="btn btn-outline !border-white !text-white hover:!bg-white hover:!text-primary"><i class="fas fa-phone-alt mr-2"></i>Contact Directly</a>
-                         <!-- <a href="volunteer-opportunities.php" class="btn !bg-white !text-neutral-dark hover:!bg-gray-100"><i class="fas fa-list-alt"></i>View Opportunities</a> -->
+        <hr>
+
+        <!-- Upcoming Camps Section - Adapting E-Waste section/card style -->
+        <section id="upcoming-camps" class="section-padding bg-neutral-light">
+            <div class="container mx-auto">
+                 <h2 class="section-title"><i class="far fa-calendar-alt mr-2"></i>Upcoming Blood Donation Camps</h2>
+                <?php if (!empty($upcoming_camps)): ?>
+                    <p class="text-center max-w-3xl mx-auto mb-12 text-lg text-neutral">Join us at one of our upcoming events and be a hero! Your presence makes a difference.</p>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <?php foreach ($upcoming_camps as $index => $camp): ?>
+                        <div class="camp-card animate-slide-up animation-delay-<?= ($index + 1) * 100 ?>">
+                            <p class="camp-date"><i class="fas fa-calendar-check"></i><?= $camp['date']->format('F j, Y (l)') ?></p>
+                            <p class="text-sm text-neutral mb-2 flex items-center gap-2"><i class="far fa-clock"></i><?= htmlspecialchars($camp['time']) ?></p>
+                            <p class="camp-location"><i class="fas fa-map-marker-alt"></i><?= htmlspecialchars($camp['location']) ?></p>
+                            <p class="camp-organizer text-sm"><i class="fas fa-sitemap"></i>Organized by: <?= htmlspecialchars($camp['organizer']) ?></p>
+                            <?php if (!empty($camp['notes'])): ?>
+                                <p class="camp-note"><i class="fas fa-info-circle"></i> <?= htmlspecialchars($camp['notes']) ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                 <?php else: ?>
+                     <!-- No Camps Message - Adapting E-Waste info box style -->
+                     <div class="no-camps-message">
+                         <i class="fas fa-info-circle"></i>
+                         <h3>No Camps Currently Scheduled</h3>
+                         <p>We are actively planning our next donation camps. Please check back soon for updates, or <a href="#donor-registration">register as a donor</a> to be notified directly!</p>
                      </div>
-                 </div>
-                 <!-- Volunteer Sign-up Form -->
-                 <div class="form-section !border-primary animate-on-scroll fade-in-right animate-delay-100"> <!-- Primary border -->
-                     <h3 class="text-2xl mb-6 text-primary font-semibold text-center">Register Your Volunteer Interest</h3> <!-- Primary color for heading -->
-                     <?= get_form_status_html('volunteer_form') ?>
-                    <form id="volunteer-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#volunteer-section" method="POST" class="space-y-5" novalidate> <!-- Add novalidate for custom validation -->
-                        <!-- Hidden Fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
-                        <input type="hidden" name="form_id" value="volunteer_form">
-                        <div class="honeypot-field" aria-hidden="true">
-                            <label for="website_url_volunteer">Keep Blank</label>
-                            <input type="text" id="website_url_volunteer" name="<?= HONEYPOT_FIELD_NAME_VOLUNTEER ?>" tabindex="-1" autocomplete="off">
-                        </div>
-                        <!-- Form Fields (using updated classes) -->
-                        <div>
-                            <label for="volunteer_name" class="form-label required">Full Name</label>
-                            <input type="text" id="volunteer_name" name="volunteer_name" required value="<?= $volunteer_form_name_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_name') ?>" placeholder="Your Name" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_name') ?>>
-                            <?= get_field_error_html('volunteer_form', 'volunteer_name') ?>
-                        </div>
-                        <div class="grid md:grid-cols-2 gap-5">
-                            <div>
-                                <label for="volunteer_email" class="form-label">Email</label>
-                                <input type="email" id="volunteer_email" name="volunteer_email" value="<?= $volunteer_form_email_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_email') ?>" placeholder="your.email@example.com" <?= get_aria_describedby('volunteer_form', 'volunteer_email') ?>>
-                                <?= get_field_error_html('volunteer_form', 'volunteer_email') ?>
-                            </div>
-                            <div>
-                                <label for="volunteer_phone" class="form-label">Phone</label>
-                                <input type="tel" id="volunteer_phone" name="volunteer_phone" value="<?= $volunteer_form_phone_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_phone') ?>" placeholder="Your Phone" <?= get_aria_describedby('volunteer_form', 'volunteer_phone') ?>>
-                                <?= get_field_error_html('volunteer_form', 'volunteer_phone') ?>
-                            </div>
-                        </div>
-                        <p class="text-xs text-neutral mt-1" id="volunteer_contact_note">Provide Email or Phone.</p> <!-- Neutral text color -->
-                        <div>
-                            <label for="volunteer_area" class="form-label required">Area of Interest</label>
-                            <select id="volunteer_area" name="volunteer_area" required class="<?= get_field_error_class('volunteer_form', 'volunteer_area') ?>" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_area') ?>>
-                                <option value="" disabled <?= empty($volunteer_form_area_value) ? 'selected' : ''?>>-- Select --</option>
-                                <option value="Health" <?= $volunteer_form_area_value == 'Health' ? 'selected' : ''?>>Health</option>
-                                <option value="Education" <?= $volunteer_form_area_value == 'Education' ? 'selected' : ''?>>Education</option>
-                                <option value="Environment" <?= $volunteer_form_area_value == 'Environment' ? 'selected' : ''?>>Environment</option>
-                                <option value="Communication" <?= $volunteer_form_area_value == 'Communication' ? 'selected' : ''?>>Communication</option>
-                                <option value="Events" <?= $volunteer_form_area_value == 'Events' ? 'selected' : ''?>>Events</option>
-                                <option value="Other" <?= $volunteer_form_area_value == 'Other' ? 'selected' : ''?>>Other</option>
-                            </select>
-                            <?= get_field_error_html('volunteer_form', 'volunteer_area') ?>
-                        </div>
-                        <div>
-                            <label for="volunteer_availability" class="form-label required">Availability</label>
-                            <input type="text" id="volunteer_availability" name="volunteer_availability" required value="<?= $volunteer_form_availability_value ?>" class="<?= get_field_error_class('volunteer_form', 'volunteer_availability') ?>" placeholder="e.g., Weekends, Evenings" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_availability') ?>>
-                            <?= get_field_error_html('volunteer_form', 'volunteer_availability') ?>
-                        </div>
-                        <div>
-                            <label for="volunteer_message" class="form-label">Message (Optional)</label>
-                            <textarea id="volunteer_message" name="volunteer_message" rows="3" class="<?= get_field_error_class('volunteer_form', 'volunteer_message') ?>" placeholder="Your motivation or skills..." <?= get_aria_describedby('volunteer_form', 'volunteer_message') ?>><?= $volunteer_form_message_value ?></textarea>
-                            <?= get_field_error_html('volunteer_form', 'volunteer_message') ?>
-                        </div>
-                        <div class="pt-5 text-center"> <!-- E-Waste button alignment -->
-                            <button type="submit" class="btn btn-accent w-full sm:w-auto"><span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Submit Interest</span><span class="spinner hidden ml-2"></span></button>
-                         </div>
-                    </form>
-                 </div>
+                <?php endif; ?>
             </div>
-        </div>
-    </section>
+        </section>
 
+        <hr>
 
-    <!-- News & Events Section -->
-    <section id="news-section" class="section-padding bg-neutral-light"> <!-- Light neutral background -->
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Latest News & Events</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-16">
-                <?php if (!empty($news_items)): ?>
-                    <?php foreach ($news_items as $index => $item): ?>
-                    <div class="news-card group animate-on-scroll fade-in-up animate-delay-<?= ($index * 100) ?> card-hover">
-                        <a href="<?= htmlspecialchars($item['link']) ?>" class="block aspect-[16/10] overflow-hidden rounded-t-lg" title="Read more"> <!-- Match card border radius -->
-                             <img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['title']) ?>" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
-                        </a>
-                        <div class="news-content">
-                             <span class="date"><i class="far fa-calendar-alt mr-1 opacity-70"></i><?= date('M j, Y', strtotime($item['date'])) ?></span>
-                             <h4 class="my-2"><a href="<?= htmlspecialchars($item['link']) ?>" class="group-hover:!text-primary"><?= htmlspecialchars($item['title']) ?></a></h4> <!-- Primary color on hover -->
-                             <p class="text-sm text-neutral"><?= htmlspecialchars($item['excerpt']) ?></p> <!-- Neutral text -->
-                              <div class="read-more-action">
-                                  <a href="<?= htmlspecialchars($item['link']) ?>" class="btn btn-outline secondary !text-sm !py-1 !px-3 group">Read More <i class="fas fa-arrow-right text-xs ml-1 group-hover:translate-x-1 transition-transform"></i></a>
-                              </div>
-                         </div>
+        <!-- Facts & Figures Section - Adapting E-Waste item list/card grid style -->
+         <section id="blood-facts" class="section-padding bg-white">
+            <div class="container mx-auto">
+                <h2 class="section-title !mt-0">Did You Know? Blood Facts</h2>
+                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6 mt-12">
+                    <?php
+                        // More relevant icons for facts
+                        $icons = ['fa-users', 'fa-hourglass-half', 'fa-hospital-user', 'fa-calendar-days', 'fa-flask-vial', 'fa-hand-holding-medical', 'fa-heart-circle-check', 'fa-universal-access', 'fa-lungs', 'fa-dna', 'fa-syringe']; // Added few more icon options
+                        // Randomize icons on each page load
+                        shuffle($icons);
+                    ?>
+                    <?php foreach ($blood_facts as $index => $fact): ?>
+                    <div class="fact-card animate-fade-in-scale animation-delay-<?= ($index + 1) * 100 ?>">
+                         <i class="fas <?= $icons[$index % count($icons)] ?> fact-icon"></i>
+                         <p class="fact-text"><?= htmlspecialchars($fact) ?></p>
                     </div>
                     <?php endforeach; ?>
-                 <?php else: ?>
-                     <p class="text-center text-neutral md:col-span-2 lg:col-span-3">No recent news.</p> <!-- Neutral text -->
-                 <?php endif; ?>
-            </div>
-            <div class="text-center mt-12"><a href="/news-archive.php" class="btn btn-primary"><i class="far fa-newspaper mr-2"></i>View News Archive</a></div> <!-- Primary button -->
-        </div>
-    </section>
-
-    <!-- Gallery Section -->
-    <section id="gallery-section" class="section-padding bg-white"> <!-- White background -->
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Glimpses of Our Work</h2>
-            <?php if (!empty($gallery_images)): ?>
-                <div class="gallery grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-16">
-                    <?php foreach ($gallery_images as $index => $image): ?>
-                    <a href="<?= htmlspecialchars($image['src']) ?>" class="gallery-item block aspect-video rounded-lg overflow-hidden shadow-md group animate-on-scroll fade-in-up animate-delay-<?= ($index * 50) ?> transition-all duration-300 hover:shadow-xl hover:scale-105">
-                         <img src="<?= htmlspecialchars($image['src']) ?>" alt="<?= htmlspecialchars($image['alt']) ?>" loading="lazy" class="w-full h-full object-cover transition-all duration-300 ease-in-out group-hover:scale-105 group-hover:brightness-110 filter group-hover:contrast-110">
-                     </a>
-                    <?php endforeach; ?>
                 </div>
-                <p class="text-center mt-8 text-neutral italic">Click images to view larger.</p> <!-- Neutral text -->
-            <?php else: ?>
-                 <p class="text-center text-neutral">Gallery coming soon.</p> <!-- Neutral text -->
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <!-- Associates Section -->
-    <section id="associates" class="section-padding bg-neutral-light"> <!-- Light neutral background -->
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Our Valued Associates & Partners</h2>
-             <p class="text-center max-w-3xl mx-auto text-lg text-neutral mb-16">Collaboration amplifies impact. We value the support of these esteemed organizations.</p> <!-- Neutral text -->
-             <div class="flex flex-wrap justify-center items-center gap-x-10 md:gap-x-16 gap-y-10"> <!-- Increased gap -->
-                <?php foreach ($associates as $index => $associate): ?>
-                 <div class="associate-logo text-center group transform transition duration-300 hover:scale-110 animate-on-scroll fade-in-up animate-delay-<?= ($index * 50) ?>">
-                    <img src="<?= htmlspecialchars($associate['img']) ?>" alt="<?= htmlspecialchars($associate['name']) ?> Logo" class="max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100">
-                    <p class="text-xs font-medium text-neutral group-hover:text-primary transition-colors"><?= htmlspecialchars($associate['name']) ?></p> <!-- Primary color on hover -->
-                 </div>
-                 <?php endforeach; ?>
             </div>
-        </div>
-    </section>
+        </section>
 
-     <!-- Donation CTA Section -->
-     <section id="donate-section" class="section-padding text-center relative overflow-hidden animated-gradient-primary-bg">
-         <div class="absolute inset-0 bg-black/35 mix-blend-multiply z-0"></div>
-         <div class="container mx-auto relative z-10">
-             <i class="fas fa-donate text-4xl text-white bg-accent p-4 rounded-full shadow-lg mb-6 inline-block animate-bounce-subtle"></i> <!-- Accent icon bg -->
-             <h2 class="section-title !text-white section-title-underline after:!bg-accent"><span class="drop-shadow-md">Support Our Initiatives</span></h2> <!-- Accent underline -->
-            <p class="text-gray-200 max-w-3xl mx-auto mb-8 text-lg leading-relaxed drop-shadow">Your contribution fuels our mission in health, education, and environment within Jalandhar.</p>
-            <p class="text-gray-200 bg-black/25 inline-block px-4 py-1.5 rounded-full text-sm font-semibold mb-10 backdrop-blur-sm border border-white/20">Donations Tax Exempt under Sec 80G.</p>
-            <div class="space-y-4 sm:space-y-0 sm:space-x-6 flex flex-wrap justify-center items-center gap-4">
-                 <a href="#contact" class="btn btn-light shadow-xl"><i class="fas fa-info-circle mr-2"></i> Donation Inquiries</a> <!-- Light button, primary text -->
-                 <button type="button" class="btn btn-outline !border-white !text-white hover:!bg-white hover:!text-primary shadow-xl group" data-modal-target="bank-details-modal"><span class="button-text flex items-center justify-center"><i class="fas fa-university mr-2 group-hover:!text-primary"></i>View Bank Details</span></button>
-            </div>
-        </div>
-     </section>
+        <hr>
 
-    <!-- Contact Section -->
-     <section id="contact" class="section-padding bg-secondary"> <!-- Secondary (gray) background -->
-        <div class="container mx-auto">
-             <h2 class="section-title section-title-underline">Connect With Us</h2>
-             <p class="text-center max-w-3xl mx-auto text-lg text-neutral mb-16">Questions, suggestions, partnerships, or just want to learn more? We're here to connect.</p> <!-- Neutral text -->
-             <div class="grid lg:grid-cols-5 gap-10 lg:gap-16 items-start">
-                 <!-- Contact Details -->
-                 <div class="lg:col-span-2 animate-on-scroll fade-in-left">
-                     <h3 class="text-2xl mb-6 font-semibold !text-primary-dark">Contact Information</h3> <!-- Primary dark heading -->
-                     <address class="space-y-6 text-neutral text-base mb-10"> <!-- Neutral text -->
-                        <div class="contact-info-item"><i class="fas fa-map-marker-alt"></i><div><span>Our Office:</span> 36 New Vivekanand Park, Maqsudan,<br>Jalandhar, Punjab - 144008</div></div>
-                        <div class="contact-info-item"><i class="fas fa-phone-alt"></i><div><span>Phone Lines:</span> <a href="tel:+911812672784">181-267-2784</a><br><a href="tel:+919855614230">98556-14230</a></div></div>
-                        <div class="contact-info-item"><i class="fas fa-envelope"></i><div><span>Email Us:</span> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></div></div>
-                     </address>
-                    <div class="mb-10 pt-8 border-t border-gray-200"><h4 class="text-lg font-semibold text-neutral mb-4">Follow Our Journey</h4><div class="flex justify-center md:justify-start space-x-5 social-icons"><!-- Social Icons --></div></div> <!-- Neutral heading -->
-                     <div class="mb-10 pt-8 border-t border-gray-200"><h4 class="text-lg font-semibold text-neutral mb-4">Visit Us</h4><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3406.124022090013!2d75.5963185752068!3d31.339546756899223!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5b7f02a86379%3A0x4c61457c43d15b97!2s36%2C%20New%20Vivekanand%20Park%2C%20Maqsudan%2C%20Jalandhar%2C%20Punjab%20144008!5e0!3m2!1sen!2sin!4v1700223266482!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-gray-200"></iframe></div> <!-- Border -->
-                     <div class="registration-info"><h4 class="text-sm font-semibold text-primary-dark mb-2">Registration</h4><!-- Reg Details --></div> <!-- Primary dark heading -->
-                 </div>
-                <!-- Contact Form -->
-                <div class="lg:col-span-3 form-section !border-neutral animate-on-scroll fade-in-right animate-delay-100"> <!-- Neutral border -->
-                    <h3 class="text-2xl mb-8 font-semibold !text-primary text-center lg:text-left">Send Us a Message</h3> <!-- Primary color heading -->
-                    <?= get_form_status_html('contact_form') ?>
-                    <form id="contact-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#contact" method="POST" class="space-y-6" novalidate> <!-- Add novalidate -->
-                        <!-- Hidden fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
-                        <input type="hidden" name="form_id" value="contact_form">
-                        <div class="honeypot-field" aria-hidden="true">
-                            <label for="website_url_contact">Leave this field blank</label>
-                            <input type="text" id="website_url_contact" name="<?= HONEYPOT_FIELD_NAME_CONTACT ?>" tabindex="-1" autocomplete="off">
-                        </div>
-                        <!-- Form Fields -->
-                        <div>
-                            <label for="contact_name" class="form-label required">Name</label>
-                            <input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" aria-required="true" <?= get_aria_describedby('contact_form', 'name') ?>>
-                            <?= get_field_error_html('contact_form', 'name') ?>
-                        </div>
-                        <div>
-                            <label for="contact_email" class="form-label required">Email</label>
-                            <input type="email" id="contact_email" name="email" required value="<?= $contact_form_email_value ?>" class="<?= get_field_error_class('contact_form', 'email') ?>" placeholder="e.g., jane.doe@example.com" aria-required="true" <?= get_aria_describedby('contact_form', 'email') ?>>
-                            <?= get_field_error_html('contact_form', 'email') ?>
-                        </div>
-                        <div>
-                            <label for="contact_message" class="form-label required">Message</label>
-                            <textarea id="contact_message" name="message" rows="5" required class="<?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your thoughts..." aria-required="true" <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea>
-                            <?= get_field_error_html('contact_form', 'message') ?>
-                        </div>
-                        <div class="pt-5 text-center"> <!-- E-Waste button alignment -->
-                            <button type="submit" class="btn btn-primary w-full sm:w-auto" id="contact-submit-button"><span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Send Message</span><span class="spinner hidden ml-2"></span></button>
-                        </div>
-                    </form>
+        <!-- Final CTA / Contact Info - Simple styling like E-Waste contact -->
+         <section id="contact-info" class="section-padding bg-neutral-light">
+             <div class="container mx-auto text-center max-w-3xl">
+                <h2 class="section-title !mt-0">Questions? Contact Our Blood Program Team</h2>
+                 <p class="text-lg mb-8 text-neutral">For specific questions about the blood donation program, eligibility, upcoming camps, or potential partnerships, please reach out directly:</p>
+                <div class="contact-block inline-block text-left space-y-4 max-w-md mx-auto animate-slide-up">
+                    <p><i class="fas fa-user-tie"></i> <strong>Coordinator:</strong>Mr. Mohit Rubel</p>
+                    <p><i class="fas fa-phone"></i> <strong>Direct Line:</strong> <a href="tel:+919855614230">+91 98556-14230</a></p>
+                    <p><i class="fas fa-envelope"></i> <strong>Email:</strong> <a href="mailto:engage@pahal-ngo.org?subject=Blood%20Donation%20Inquiry" class="break-all">engage@pahal-ngo.org</a></p>
+                </div>
+                <div class="mt-12 animate-slide-up animation-delay-200">
+                    <a href="index.php#contact" class="btn-outline"><i class="fas fa-address-book mr-2"></i>General PAHAL Contact Info</a>
                  </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Donation Modal -->
-     <div id="bank-details-modal" class="modal-container" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      <div class="modal-box">
-         <button type="button" class="close-button" aria-label="Close modal" data-modal-close="bank-details-modal"><i class="fas fa-times fa-lg"></i></button>
-         <h3 id="modal-title">Bank Transfer Details</h3>
-        <p class="text-neutral">Use the following details for direct bank transfers. Mention "Donation" in the description.</p> <!-- Neutral text -->
-         <div class="modal-content-box">
-            <p><strong>Account Name:</strong> PAHAL (Regd.)</p>
-            <p><strong>Account Number:</strong> [YOUR_BANK_ACCOUNT_NUMBER]</p> <!-- REPLACE -->
-             <p><strong>Bank Name:</strong> [YOUR_BANK_NAME]</p> <!-- REPLACE -->
-             <p><strong>Branch:</strong> [YOUR_BANK_BRANCH]</p> <!-- REPLACE -->
-             <p><strong>IFSC Code:</strong> [YOUR_IFSC_CODE]</p> <!-- REPLACE -->
-        </div>
-        <p class="modal-footer-note text-neutral-medium">For queries or receipts, contact us. Thank you!</p> <!-- Neutral medium text -->
-      </div>
-    </div>
+    </main>
 
-</main>
-
-<!-- Footer -->
-<footer class="bg-primary-dark text-gray-300 pt-12 pb-8 mt-12 border-t-4 border-accent">
-    <div class="container mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12 text-center md:text-left">
-            <!-- Footer About -->
-            <div>
-                <h4 class="footer-heading">About PAHAL</h4>
-                <a href="#hero" class="inline-block mb-3"><img src="icon.webp" alt="PAHAL Icon" class="w-14 h-14 rounded-full bg-white p-1 shadow-md mx-auto md:mx-0"></a>
-                <p class="text-gray-400 text-sm">Jalandhar NGO fostering holistic growth & community service.</p> <!-- Gray 400 text -->
-                <p class="text-xs text-gray-500 mt-2">Reg No: 737 | 80G & 12A</p>
-                 <div class="mt-4 flex justify-center md:justify-start space-x-4">
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram" class="footer-social-icon hover:text-[#E1306C]"><i class="fab fa-instagram"></i></a>
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook" class="footer-social-icon hover:text-[#1877F2]"><i class="fab fa-facebook-f"></i></a>
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Twitter" title="Twitter" class="footer-social-icon hover:text-[#1DA1F2]"><i class="fab fa-twitter"></i></a>
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn" class="footer-social-icon hover:text-[#0A66C2]"><i class="fab fa-linkedin-in"></i></a>
-                 </div>
-            </div>
-             <!-- Footer Quick Links -->
-             <div>
-                 <h4 class="footer-heading">Explore</h4>
-                 <ul class="footer-links space-y-1.5 text-sm columns-2 md:columns-1">
-                     <li><a href="#profile"><i class="fas fa-chevron-right"></i>Profile</a></li>
-                     <li><a href="#objectives"><i class="fas fa-chevron-right"></i>Objectives</a></li>
-                     <li><a href="#areas-focus"><i class="fas fa-chevron-right"></i>Focus Areas</a></li>
-                     <li><a href="#news-section"><i class="fas fa-chevron-right"></i>News</a></li>
-                     <li><a href="blood-donation.php"><i class="fas fa-chevron-right"></i>Blood Drive</a></li>
-                     <li><a href="e-waste.php"><i class="fas fa-chevron-right"></i>E-Waste</a></li>
-                     <li><a href="#volunteer-section"><i class="fas fa-chevron-right"></i>Volunteer</a></li>
-                     <li><a href="#donate-section"><i class="fas fa-chevron-right"></i>Donate</a></li>
-                     <li><a href="#contact"><i class="fas fa-chevron-right"></i>Contact</a></li>
-                     <li><a href="/privacy-policy.php"><i class="fas fa-chevron-right"></i>Privacy</a></li>
-                 </ul>
+    <!-- Footer - Matching E-Waste style -->
+    <footer class="bg-primary-dark text-gray-300 pt-12 pb-8 mt-12">
+         <div class="container mx-auto text-center px-4">
+             <div class="mb-4">
+                 <a href="index.php" class="text-2xl font-black text-white hover:text-gray-300 font-heading leading-none">PAHAL NGO</a>
+                 <p class="text-xs text-gray-400">Driving Sustainable Solutions</p>
              </div>
-             <!-- Footer Contact -->
-             <div>
-                 <h4 class="footer-heading">Reach Us</h4>
-                 <address class="text-gray-400 text-sm"> <!-- Gray 400 text -->
-                     <p class="mb-3 flex items-start gap-3"><i class="fas fa-map-marker-alt text-primary mt-1 w-4 text-center flex-shrink-0"></i> 36 New Vivekanand Park, Maqsudan, Jalandhar, Punjab - 144008</p> <!-- Primary icon -->
-                     <p class="mb-3 flex items-start gap-3"><i class="fas fa-phone-alt text-primary mt-1 w-4 text-center flex-shrink-0"></i> <a href="tel:+911812672784">181-267-2784</a></p> <!-- Primary icon -->
-                     <p class="mb-3 flex items-start gap-3"><i class="fas fa-mobile-alt text-primary mt-1 w-4 text-center flex-shrink-0"></i> <a href="tel:+919855614230">98556-14230</a></p> <!-- Primary icon -->
-                     <p class="mb-3 flex items-start gap-3"><i class="fas fa-envelope text-primary mt-1 w-4 text-center flex-shrink-0"></i> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></p> <!-- Primary icon -->
-                 </address>
-             </div>
-             <!-- Footer Inspiration -->
-             <div>
-                  <h4 class="footer-heading">Inspiration</h4>
-                 <blockquote>"The best way to find yourself is to lose yourself in the service of others."<cite>- Mahatma Gandhi</cite></blockquote>
-             </div>
+             <nav class="mb-4 text-sm space-x-4">
+                  <a href="index.php" class="hover:text-white hover:underline">Home</a> |
+                 <a href="#why-donate" class="hover:text-white hover:underline">Why Donate</a> |
+                 <a href="#upcoming-camps" class="hover:text-white hover:underline">Camps</a> |
+                 <a href="#donor-registration" class="hover:text-white hover:underline">Register Donor</a> |
+                 <a href="#request-blood" class="hover:text-white hover:underline">Request Blood</a> |
+                  <a href="#contact-info" class="hover:text-white hover:underline">Contact</a>
+            </nav>
+            <p class="text-xs text-gray-500 mt-6">
+                © <?= $current_year ?> PAHAL NGO. All Rights Reserved. | Saving Lives, Building Community. <br class="sm:hidden">
+                 <a href="index.php" class="hover:text-white hover:underline">Main Site</a> | <a href="privacy.php" class="hover:text-white hover:underline">Privacy Policy (Example)</a>
+            </p>
         </div>
-        <!-- Footer Bottom -->
-        <div class="footer-bottom"><p>© <?= $current_year ?> PAHAL (Regd.), Jalandhar. All Rights Reserved.</p></div>
-    </div>
-</footer>
+    </footer>
 
-<!-- Back to Top Button -->
-<button id="back-to-top" aria-label="Back to Top" title="Back to Top" class="back-to-top-button">
-   <i class="fas fa-arrow-up text-lg"></i>
-</button>
+    <!-- Main Application JavaScript -->
+    <script>
+     document.addEventListener('DOMContentLoaded', () => {
+        console.log("PAHAL Blood Donation Page JS Loaded (E-Waste UI Styling Applied)");
 
-<!-- Simple Lightbox JS -->
-<script src="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.js"></script>
+        // --- Form Submission Spinner Logic (Kept from Blood page, simplified) ---
+        const forms = document.querySelectorAll('form[id$="-form-tag"]'); // Target forms by suffix
 
-<!-- Main JavaScript (Keep existing logic, remove theme toggle) -->
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log("PAHAL Main Page JS Loaded (E-Waste UI)");
-
-        // Elements
-        const menuToggle = document.getElementById('mobile-menu-toggle');
-        const navbar = document.getElementById('navbar');
-        const navLinks = document.querySelectorAll('#navbar a.nav-link[href^="#"]');
-        const header = document.getElementById('main-header');
-        const backToTopButton = document.getElementById('back-to-top');
-        const sections = document.querySelectorAll('main section[id]');
-        let headerHeight = header?.offsetHeight ?? 70; // Default if header not found
-
-        // --- Removed Theme Toggle ---
-        // Theming is now handled via the fixed Tailwind config based on E-Waste style.
-
-        // --- Header & Layout ---
-        let scrollTimeout;
-        const updateLayout = () => {
-            // Recalculate header height on scroll/resize for accurate smooth scrolling
-            headerHeight = header?.offsetHeight ?? 70;
-
-            // Add scrolled class to header
-            if (header && window.scrollY > 50) { // Adjust scroll threshold
-                 header.classList.add('scrolled');
-             } else if (header) {
-                 header.classList.remove('scrolled');
-             }
-
-             // Show/hide back to top button
-             if (backToTopButton) {
-                 if (window.scrollY > (window.innerHeight * 0.75)) { // Show after scrolling down 75% of viewport height
-                     backToTopButton.classList.add('visible');
-                 } else {
-                     backToTopButton.classList.remove('visible');
-                 }
-             }
-
-             // Close mobile menu on resize if it goes above mobile breakpoint (handled by CSS default display)
-             // Close mobile menu on scroll if open (optional, might be jarring)
-        };
-
-        updateLayout(); // Initial call
-        window.addEventListener('resize', updateLayout);
-        window.addEventListener('scroll', () => {
-             // Use a timeout for performance on scroll events
-             clearTimeout(scrollTimeout);
-             scrollTimeout = setTimeout(updateLayout, 50); // Adjust delay as needed
-        }, { passive: true }); // Use passive listener for better scroll performance
-
-
-        // --- Mobile Menu ---
-        let isMobileMenuOpen = false; // State variable
-
-        const toggleMobileMenu = (forceClose = false) => {
-             if (menuToggle && navbar) {
-                 // Check if screen size is actually mobile before toggling
-                 const isMobile = window.innerWidth < 1024; // Tailwind's 'lg' breakpoint
-                 if (!isMobile && !forceClose) return; // Don't toggle if desktop and not forced closed
-
-                 isMobileMenuOpen = forceClose ? false : !isMobileMenuOpen;
-
-                 menuToggle.setAttribute('aria-expanded', isMobileMenuOpen);
-                 menuToggle.classList.toggle('open', isMobileMenuOpen);
-                 navbar.classList.toggle('open', isMobileMenuOpen);
-                // htmlElement.classList.toggle('overflow-hidden', isMobileMenuOpen); // Prevent background scroll (optional)
-             }
-         };
-
-        menuToggle?.addEventListener('click', () => toggleMobileMenu());
-
-         // Close menu when clicking a nav link on mobile
-         navLinks.forEach(link => {
-             link.addEventListener('click', () => {
-                 // A small delay might be needed if smooth scroll starts immediately
-                 setTimeout(() => {
-                     toggleMobileMenu(true); // Force close after click
-                 }, 100); // Adjust delay if needed
-             });
-         });
-
-         // Close menu on resize if it becomes desktop size
-        window.addEventListener('resize', () => {
-             const isMobile = window.innerWidth < 1024;
-             if (!isMobile && isMobileMenuOpen) {
-                 toggleMobileMenu(true); // Force close if menu is open and screen becomes desktop
-             }
-        });
-
-
-        // --- Active Link Highlighting ---
-        const setActiveLink = () => {
-             // Add a small tolerance to the scroll position calculation
-             const scrollPos = window.scrollY + headerHeight + 50; // Add tolerance (e.g., 50px)
-             let currentActiveSectionId = null;
-
-             // Iterate over sections to find which one is currently in view
-            sections.forEach(section => {
-                 // Check if the section is within the visible part of the viewport
-                 // using getBoundingClientRect is more robust
-                 const rect = section.getBoundingClientRect();
-                 // isPartiallyVisible = rect.top < window.innerHeight && rect.bottom >= 0;
-
-                 // Check if the top of the section is past the scroll position offset by header
-                 if (section.offsetTop <= scrollPos && section.offsetTop + section.offsetHeight > scrollPos) {
-                     currentActiveSectionId = section.id;
-                 }
-             });
-
-            // If no section is active and we are at the very top, highlight the Hero link
-            if (currentActiveSectionId === null && window.scrollY < sections[0]?.offsetTop) {
-                 currentActiveSectionId = sections[0]?.id === 'hero' ? 'hero' : null;
-            }
-
-
-            // Update nav links based on the active section ID
-             navLinks.forEach(link => {
-                link.classList.remove('active');
-                 // Special handling for the home link pointing to #hero
-                 const linkHref = link.getAttribute('href').substring(1);
-                 if (linkHref === currentActiveSectionId) {
-                    link.classList.add('active');
-                 } else if (linkHref === '' && currentActiveSectionId === 'hero') { // Handles href="#"
-                      link.classList.add('active');
-                 }
-             });
-         };
-
-         let activeLinkTimeout;
-         window.addEventListener('scroll', () => {
-             clearTimeout(activeLinkTimeout);
-             activeLinkTimeout = setTimeout(setActiveLink, 100); // Adjust delay for performance
-         }, { passive: true });
-
-         // Initial call to set active link on page load, and after potential session restore redirect
-         setActiveLink();
-
-
-        // --- Smooth Scroll ---
-        // Using native smooth scroll behavior, with header offset calculation
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                const href = this.getAttribute('href');
-                const targetId = href.substring(1);
-                const targetElement = document.getElementById(targetId);
-
-                 if (targetElement) {
-                     e.preventDefault(); // Prevent default hash behavior
-
-                     // Calculate the scroll position taking the fixed header into account
-                     const offsetTop = targetElement.getBoundingClientRect().top + window.scrollY - headerHeight;
-
-                     window.scrollTo({
-                         top: offsetTop,
-                         behavior: 'smooth'
-                     });
-
-                     // Optional: Update URL hash after scroll finishes
-                     // window.history.pushState(null, null, href);
-                 } else if (href === '#' || href === '#hero') { // Handle # or #hero links
-                     e.preventDefault(); // Prevent default hash behavior
-                     window.scrollTo({ top: 0, behavior: 'smooth' });
-                 }
-
-                // Mobile menu close handled by separate event listener on navLinks
-            });
-        });
-
-        // --- Back to Top ---
-        backToTopButton?.addEventListener('click', () => {
-             window.scrollTo({ top: 0, behavior: 'smooth' });
-         });
-
-        // --- Form Submission & Messages ---
-        document.querySelectorAll('form[id$="-form-tag"]').forEach(form => {
+         forms.forEach(form => {
              const submitButton = form.querySelector('button[type="submit"]');
-             const buttonTextSpan = submitButton?.querySelector('.button-text'); // Use the span for text
-             const spinner = submitButton?.querySelector('.spinner'); // Use the span for spinner
+             if (!submitButton) return; // Skip if no submit button found
+
+             // Add a basic spinner element if not present (useful if HTML template doesn't include it)
+             if (!submitButton.querySelector('.spinner')) {
+                 const spinner = document.createElement('span');
+                 spinner.classList.add('spinner', 'mr-2', 'hidden'); // Add Tailwind spinner class
+                 submitButton.insertBefore(spinner, submitButton.firstChild);
+             }
+             const spinner = submitButton.querySelector('.spinner');
+             const buttonTextSpan = submitButton.querySelector('.button-text'); // Assuming button text is wrapped in .button-text
+
              form.addEventListener('submit', (e) => {
-                 // Basic HTML5 validity check before disabling button
-                 if (form.checkValidity()) {
-                    if (submitButton) {
-                        submitButton.disabled = true;
-                        if (buttonTextSpan) buttonTextSpan.classList.add('opacity-0'); // Hide text gracefully
-                        if (spinner) spinner.classList.remove('hidden'); // Show spinner
+                 // Basic HTML5 validity check before showing spinner
+                if (form.checkValidity()) {
+                    submitButton.disabled = true;
+                    // Show spinner, hide text
+                    spinner?.classList.remove('hidden');
+                    spinner?.classList.add('inline-block');
+                     if (buttonTextSpan) {
+                        buttonTextSpan.classList.add('invisible'); // Use invisible instead of opacity for layout stability
+                        buttonTextSpan.classList.remove('visible');
+                     } else {
+                         // If no .button-text, just hide the whole button content implicitly
+                         submitButton.innerHTML = '<i class="fas fa-spinner animate-spin mr-2"></i>Submitting...'; // Fallback
                      }
+                 } else {
+                      // If HTML5 validation fails client-side, the form won't submit,
+                      // and the button remains enabled. No action needed here other than default browser validation UI.
+                     console.log("Client-side validation failed, submission prevented.");
                  }
-                 // Note: Server-side validation is still the primary security measure.
              });
 
-             // Form status messages are now styled by CSS based on get_form_status_html output.
-             // No specific JS animation needed based on the refactored blood page.
-        });
+             // Note: The button state is reset on the page reload after the PHP redirect.
+             // If you were using AJAX submission, you'd need more JS here to handle server responses.
+          });
 
 
-        // --- Gallery Lightbox ---
-        // Initialize SimpleLightbox if the element exists and library is loaded
-        try {
-            if (typeof SimpleLightbox !== 'undefined') {
-                const galleryExists = document.querySelector('.gallery');
-                if (galleryExists) {
-                    new SimpleLightbox('.gallery a', {
-                        captionDelay: 250,
-                        fadeSpeed: 200,
-                        animationSpeed: 200,
-                        // Add more options as needed
-                     });
+        // --- Scroll Target Restoration (PHP driven via URL hash, JS just needs to handle header offset) ---
+        // This logic is slightly different from the original Blood page JS but simpler
+        // and works with the PHP redirect + URL hash approach.
+        const hash = window.location.hash;
+        if (hash) {
+            try {
+                const targetElement = document.querySelector(decodeURIComponent(hash));
+                if (targetElement) {
+                     // Wait slightly for potential layout shifts before scrolling
+                    setTimeout(() => {
+                        const header = document.getElementById('main-header');
+                        const headerOffset = header ? header.offsetHeight : 0; // Get header height
+                        const elementPosition = targetElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - headerOffset - 20; // Adjust by header height and add a small margin
+
+                        window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                    }, 150); // Small delay
                 }
-            } else {
-                console.warn("SimpleLightbox library not found. Gallery images will not open in a lightbox.");
+            } catch (e) {
+                console.warn("Error scrolling to hash:", hash, e);
             }
-        } catch(e) {
-            console.error("SimpleLightbox initialization failed:", e);
         }
 
-
-        // --- Animation on Scroll (Intersection Observer) ---
-        // Keep Intersection Observer logic from original index
-        const observerOptions = {
-            root: null, // viewport
-            rootMargin: '0px 0px -15% 0px', // Trigger when 15% from bottom of viewport
-            threshold: 0.05 // Trigger as soon as even a small part is visible
-        };
-
-        const intersectionCallback = (entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('is-visible');
-                    // Optional: Stop observing once animated
-                    // observer.unobserve(entry.target);
-                } else {
-                    // Optional: Remove class if element scrolls out of view (useful for elements that re-appear)
-                     // entry.target.classList.remove('is-visible');
-                }
-            });
-        };
-
-        // Check if IntersectionObserver is supported before using it
-        if ('IntersectionObserver' in window) {
-            const observer = new IntersectionObserver(intersectionCallback, observerOptions);
-            // Observe all elements with the 'animate-on-scroll' class
-            document.querySelectorAll('.animate-on-scroll').forEach(el => {
-                observer.observe(el);
-            });
-        } else {
-            // Fallback for browsers that don't support IntersectionObserver
-            console.warn("IntersectionObserver not supported. Applying all animations on load.");
-            document.querySelectorAll('.animate-on-scroll').forEach(el => {
-                el.classList.add('is-visible'); // Simply apply the final state styles
-            });
-        }
-
-
-         // --- Modal Handling ---
-         // Keep modal handling logic from original index, adapting class names
-        const modalTriggers = document.querySelectorAll('[data-modal-target]');
-        const modalClosers = document.querySelectorAll('[data-modal-close]');
-        const modals = document.querySelectorAll('.modal-container');
-
-        // Function to open a modal
-        const openModal = (modalId) => {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.remove('hidden'); // Use 'hidden' for initial state
-                modal.classList.add('flex');    // Use 'flex' to display and center
-                // Add a short delay to allow 'display' change before transition
-                setTimeout(() => {
-                     // The opacity and transform transitions are handled by the CSS classes
-                     // added/removed based on the presence of the 'flex' class.
-                 }, 10); // Small delay
-                document.documentElement.classList.add('overflow-hidden'); // Prevent background scroll
-            }
-        };
-
-        // Function to close a modal
-        const closeModal = (modal) => {
-            if (modal) {
-                // Trigger CSS transition out
-                 modal.classList.remove('flex');
-
-                // Wait for the transition to finish before hiding completely
-                // Get duration from CSS, accounting for both transform and opacity
-                const style = getComputedStyle(modal.querySelector('.modal-box'));
-                const transformDuration = parseFloat(style.transitionDuration.split(',')[1] || style.transitionDuration) * 1000;
-                 const opacityDuration = parseFloat(getComputedStyle(modal).transitionDuration) * 1000;
-                 const transitionDuration = Math.max(transformDuration, opacityDuration); // Use the longer duration
-
-                setTimeout(() => {
-                    modal.classList.add('hidden'); // Hide completely after transition
-                    // Remove overflow-hidden only if no other modals are open
-                    if (!document.querySelectorAll('.modal-container.flex').length) {
-                         document.documentElement.classList.remove('overflow-hidden');
-                    }
-                }, transitionDuration); // Match CSS transition duration
-            }
-        };
-
-        // Event listeners for modal triggers
-        modalTriggers.forEach(button => {
-            button.addEventListener('click', () => {
-                const modalId = button.getAttribute('data-modal-target');
-                if (modalId) {
-                    openModal(modalId);
-                }
-            });
-        });
-
-        // Event listeners for modal closers
-        modalClosers.forEach(button => {
-            button.addEventListener('click', () => {
-                const modalId = button.getAttribute('data-modal-close');
-                if (modalId) {
-                    const modal = document.getElementById(modalId);
-                    closeModal(modal);
-                }
-            });
-        });
-
-        // Close modal when clicking outside the modal-box
-        modals.forEach(modal => {
-            modal.addEventListener('click', (event) => {
-                // Check if the click target is the modal container itself, not its children
-                if (event.target === modal) {
-                    closeModal(modal);
-                }
-            });
-        });
-
-        // Close modal when pressing the Escape key
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-                // Find any open modal and close it
-                document.querySelectorAll('.modal-container.flex').forEach(openModal => {
-                     closeModal(openModal);
-                 });
-            }
-        });
-
-
-        console.log("PAHAL Main Page JS Initialized.");
-
-         // Handle scroll-to-hash after PRG redirect
-         // This uses the standard browser hash scrolling, but we might need to adjust for fixed header
-         // Let's implement the blood page's approach for consistency: get hash on load and scroll with offset
-         const hash = window.location.hash;
-         if (hash) {
-             try {
-                 // Use a timeout to ensure header height is calculated and DOM is ready
-                 setTimeout(() => {
-                      const targetElement = document.querySelector(decodeURIComponent(hash));
-                      if (targetElement) {
-                           const header = document.getElementById('main-header');
-                           const headerOffset = header ? header.offsetHeight : 0; // Get header height
-                           const elementPosition = targetElement.getBoundingClientRect().top;
-                           const offsetPosition = elementPosition + window.pageYOffset - headerOffset - 20; // Adjust by header height and add a small margin
-
-                           window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
-                       }
-                 }, 150); // Small delay
-             } catch (e) {
-                 console.warn("Error scrolling to hash:", hash, e);
-             }
-         }
-    });
-</script>
+        console.log("PAHAL Blood Donation Page JS Initialized.");
+     });
+     </script>
 
 </body>
 </html>
