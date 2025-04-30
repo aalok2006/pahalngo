@@ -22,7 +22,8 @@ define('SENDER_NAME_DEFAULT', 'PAHAL NGO Blood Program');                       
 
 // --- Security Settings ---
 define('CSRF_TOKEN_NAME', 'csrf_token');
-define('HONEYPOT_FIELD_NAME', 'contact_preference_blood'); // Unique honeypot name, different from ewaste if on same domain
+// Unique honeypot name, different from ewaste if both pages are on the same domain and share a form processing script
+define('HONEYPOT_FIELD_NAME', 'contact_preference_blood'); // Unique honeypot name
 
 // --- Logging ---
 define('ENABLE_LOGGING', true); // Set to true to log submissions/errors
@@ -875,14 +876,14 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
             ul.cross-list li { @apply flex items-start; }
             ul.cross-list li::before { content: '\f00d'; font-family: 'Font Awesome 6 Free'; font-weight: 900; @apply text-danger mr-3 mt-1 text-sm flex-shrink-0; }
 
-            /* Adopt E-Waste table styles */
-            table { @apply w-full border-collapse text-left text-sm text-neutral; }
+            /* Adopt E-Waste table styles (if needed - Blood page doesn't use tables in its content) */
+            /* table { @apply w-full border-collapse text-left text-sm text-neutral; }
             thead { @apply bg-primary/10; }
             th { @apply border border-primary/20 px-4 py-2 font-semibold text-primary; }
             td { @apply border border-gray-300 px-4 py-2; }
             tbody tr:nth-child(odd) { @apply bg-white; }
             tbody tr:nth-child(even) { @apply bg-neutral-light; }
-            tbody tr:hover { @apply bg-primary/5; }
+            tbody tr:hover { @apply bg-primary/5; } */
 
             /* Adopt E-Waste form element base styles */
             label { @apply block text-sm font-medium text-gray-700 mb-1; } /* Matching E-Waste label spacing */
@@ -905,7 +906,9 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
             .btn { @apply inline-flex items-center justify-center bg-primary text-white font-semibold py-3 px-8 rounded-full shadow-md hover:bg-primary-dark hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
             .btn i { @apply mr-2 -ml-1; }
              /* Defined btn-secondary and btn-accent based on E-Waste structure and colors */
+             /* btn-secondary matches E-Waste's btn-secondary (accent color) */
             .btn-secondary { @apply inline-flex items-center justify-center bg-accent text-black font-semibold py-3 px-8 rounded-full shadow-md hover:bg-accent-dark hover:text-white hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
+             /* btn-accent uses danger color for Blood Request */
              .btn-accent { @apply inline-flex items-center justify-center bg-danger text-white font-semibold py-3 px-8 rounded-full shadow-md hover:bg-red-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-danger focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed; }
              .btn-outline { @apply inline-flex items-center justify-center bg-transparent border-2 border-primary text-primary font-semibold py-2 px-6 rounded-full hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition duration-300 ease-in-out; }
             /* Removed btn-icon */
@@ -956,7 +959,7 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
          #hero-blood p.lead { @apply text-gray-200 max-w-3xl mx-auto drop-shadow text-xl md:text-2xl mb-8; } /* Matching E-Waste hero p */
          #hero-blood .icon-drop { @apply text-6xl text-danger mb-4 animate-pulse-glow; } /* Blood icon, using E-Waste glow animation */
          #hero-blood .cta-buttons { @apply flex flex-wrap justify-center gap-4; } /* Matching E-Waste hero button layout */
-         #hero-blood .cta-buttons .btn { @apply text-white; } /* Ensure text color for btns on dark hero */
+         #hero-blood .cta-buttons .btn { @apply !text-white; } /* Ensure text color for btns on dark hero */
 
 
         /* Eligibility List Icons - Adapting E-Waste list item style ideas */
@@ -978,14 +981,14 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
          .camp-card .camp-note i { @apply text-neutral; }
 
          /* No Camps Message - Adapting E-Waste info box style */
-         .no-camps-message { @apply bg-info-light p-6 rounded-lg shadow-md border-l-4 border-info text-center max-w-2xl mx-auto flex flex-col items-center animate-fade-in; }
+         .no-camps-message { @apply bg-info-light p-6 rounded-lg shadow-md border-l-4 border-info text-center max-w-2xl mx-auto flex flex-col items-center animate-fade-in-scale; } /* Use E-Waste info colors/border, animation */
          .no-camps-message i { @apply text-5xl text-info mb-4; }
          .no-camps-message h3 { @apply text-info text-xl !mt-0 mb-2; } /* Adjusted heading */
          .no-camps-message p { @apply text-neutral text-base mb-0; }
          .no-camps-message a { @apply font-semibold underline text-primary hover:text-primary-dark; }
 
 
-        /* Blood Facts Cards - Adapting E-Waste item list or simple card grid */
+        /* Blood Facts Cards - Adapting E-Waste item list/card grid style */
         #blood-facts .fact-card { @apply card bg-primary/5 flex flex-col items-center text-center p-4 transition-transform duration-300 hover:scale-105; } /* Use E-Waste card base, light background */
         #blood-facts .fact-icon { @apply text-4xl mb-3 text-primary; } /* Primary color for icons */
         #blood-facts .fact-text { @apply text-sm font-medium text-neutral-dark; } /* Text color */
@@ -1351,28 +1354,6 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
         </section>
 
     </main>
-
-    <!-- Footer - Matching E-Waste style -->
-    <footer class="bg-primary-dark text-gray-300 pt-12 pb-8 mt-12">
-         <div class="container mx-auto text-center px-4">
-             <div class="mb-4">
-                 <a href="index.php" class="logo-text">PAHAL NGO</a>
-                 <p class="text-xs text-gray-400">Promoting Health and Well-being</p> <!-- Adjusted tagline -->
-             </div>
-             <nav class="mb-4 text-sm space-x-4">
-                  <a href="index.php">Home</a> |
-                 <a href="#donor-registration">Register Donor</a> |
-                 <a href="#request-blood">Request Blood</a> |
-                 <a href="#upcoming-camps">Camps</a> |
-                 <a href="e-waste.php">E-Waste</a> |
-                 <a href="index.php#contact">Contact</a>
-            </nav>
-             <div class="footer-bottom">
-                 <p> © <?= $current_year ?> PAHAL NGO (Regd.). All Rights Reserved. </p>
-                 <p class="mt-1"> <a href="/privacy-policy.php" class="hover:text-white hover:underline">Privacy Policy</a> | <a href="/terms.php" class="hover:text-white hover:underline">Terms of Service</a> </p> {/* Example Links */}
-             </div>
-       </div>
-    </footer>
 
     <!-- Removed Leaflet JS -->
 
