@@ -948,7 +948,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                         <div class="contact-info-item"><i class="fas fa-envelope"></i><div><span>Email Us:</span> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></div></div>
                      </address>
                     <div class="mb-10 pt-8 border-t border-theme-border/50"><h4 class="text-lg font-semibold text-theme-secondary mb-4">Follow Our Journey</h4><div class="flex space-x-5 social-icons"><!-- Social Icons --></div></div>
-                     <div class="mb-10 pt-8 border-t border-theme-border/50"><h4 class="text-lg font-semibold text-theme-secondary mb-4">Visit Us</h4><iframe src="..." width="100%" height="300" class="rounded-lg shadow-md border border-theme-border/50"></iframe></div>
+                     <div class="mb-10 pt-8 border-t border-gray-200"><h4 class="text-lg font-semibold text-neutral mb-4">Visit Us</h4><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3406.124022090013!2d75.5963185752068!3d31.339546756899223!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5b7f02a86379%3A0x4c61457c43d15b97!2s36%2C%20New%20Vivekanand%20Park%2C%20Maqsudan%2C%20Jalandhar%2C%20Punjab%20144008!5e0!3m2!1sen!2sin!4v1700223266482!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-gray-200"></iframe></div> 
                      <div class="registration-info"><h4 class="text-sm font-semibold text-theme-primary dark:text-theme-primary mb-2">Registration</h4><!-- Reg Details --></div>
                  </div>
                 <!-- Contact Form -->
