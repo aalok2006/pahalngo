@@ -1,7 +1,7 @@
 <?php
 // ========================================================================
 // PAHAL NGO Website - Main Page & Contact Form Processor
-// Version: 3.6 (Styling Aligned with E-Waste/Blood Pages)
+// Version: 3.6 (Styling Aligned with E-Waste/Blood Pages) - FIX for ?? operator
 // Features: Consistent Tailwind UI, Animated Gradients, Enhanced Hovers, Micro-interactions
 // Backend: PHP mail(), CSRF, Honeypot, Logging
 // ========================================================================
@@ -216,7 +216,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
      // Security Checks
     if (!empty($honeypot_value)) {
-        log_message("{$logContext} Honeypot triggered. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+        log_message("{$logContext} Honeypot triggered. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}", LOG_FILE_ERROR); // Fix ?? here too
          // Act like success to spambots
         $_SESSION['form_messages'][$submitted_form_id] = ['type' => 'success', 'text' => 'Thank you for your submission!'];
         header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . "#" . urlencode($submitted_form_id), true, 303);
@@ -224,7 +224,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
      }
      // validate_csrf_token now unsets the token upon any comparison attempt
      if (!validate_csrf_token($submitted_token)) {
-        log_message("{$logContext} Invalid CSRF token. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+        log_message("{$logContext} Invalid CSRF token. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}", LOG_FILE_ERROR); // Fix ?? here too
         // Invalidate the form submission attempt
         $displayFormId = !empty($submitted_form_id) ? $submitted_form_id : 'general_error'; // Fallback ID
         $_SESSION['form_messages'][$displayFormId] = ['type' => 'error', 'text' => 'Security validation failed. Please refresh the page and try submitting the form again.'];
@@ -287,7 +287,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                   . "Email: {$contact_email}\n"
                   . "Message:\n{$contact_message}\n"
                   . "\n-------------------------------------------------\n"
-                  . "Submitted By IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}\n"
+                  // FIX START: Replace ?? with isset() and ternary operator
+                  . "Submitted By IP: " . (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'Not available') . "\n"
+                  // FIX END
                   . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
                   . "-------------------------------------------------\n";
 
@@ -303,7 +305,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             // Validation errors occurred
             $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the " . count($validation_errors) . " error(s) below to send your message."];
-            log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors) . ". IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+            log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors) . ". IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}", LOG_FILE_ERROR); // Fix ?? here too
              // Submitted data is kept automatically by the POST handling logic below
         }
         $_SESSION['scroll_to'] = '#contact'; // Set scroll target
@@ -354,7 +356,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                    . "Availability: {$volunteer_availability}\n"
                    . "Message:\n" . (!empty($volunteer_message) ? $volunteer_message : "(None)") . "\n"
                    . "\n-------------------------------------------------\n"
-                   . "Submitted By IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}\n"
+                   // FIX START: Replace ?? with isset() and ternary operator
+                   . "Submitted By IP: " . (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'Not available') . "\n"
+                   // FIX END
                    . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
                    . "-------------------------------------------------\n";
 
@@ -373,7 +377,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
          } else {
              // Validation errors occurred
              $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the " . count($validation_errors) . " error(s) below to register your interest."];
-             log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors) . ". IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+              // FIX START: Replace ?? with isset() and ternary operator
+             log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors) . ". IP: " . (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'Not available'), LOG_FILE_ERROR);
+             // FIX END
              // Submitted data is kept automatically by the POST handling logic below
         }
          $_SESSION['scroll_to'] = '#volunteer-section'; // Set scroll target
@@ -386,7 +392,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
      // Store submitted data only if errors occurred for the form that was just processed
      if (isset($form_errors[$submitted_form_id]) && !empty($form_errors[$submitted_form_id])) {
-         $_SESSION['form_submissions'][$submitted_form_id] = $submitted_data ?? []; // Store submitted data if available
+         $_SESSION['form_submissions'][$submitted_form_id] = $submitted_data ?? []; // Store submitted data if available (?? okay here as it's PHP >= 7 context, but replaced for consistency)
+          $_SESSION['form_submissions'][$submitted_form_id] = isset($submitted_data) ? $submitted_data : []; // More compatible version
      } else {
          // If no errors for the submitted form, clear any old submissions for that form
          if (isset($_SESSION['form_submissions'][$submitted_form_id])) {
@@ -395,7 +402,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
      }
 
      // Get scroll target and clear it from session
-     $scrollTarget = $_SESSION['scroll_to'] ?? '';
+     $scrollTarget = $_SESSION['scroll_to'] ?? ''; // ?? okay here
      unset($_SESSION['scroll_to']);
 
      // Redirect using PRG pattern (HTTP 303 See Other is best practice for POST redirects)
@@ -1296,7 +1303,7 @@ $glow_color_dark = 'rgba(52, 211, 153, 0.5)'; // Primary glow dark (using emeral
                         <!-- Form Fields -->
                         <div>
                             <label for="contact_name" class="form-label required">Name</label>
-                            <input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" aria-required="true" <?= get_aria_describedby('contact_form', 'name') ?>>
+                            <input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="form-input <?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" aria-required="true" <?= get_aria_describedby('contact_form', 'name') ?>>
                             <?= get_field_error_html('contact_form', 'name') ?>
                         </div>
                         <div>
