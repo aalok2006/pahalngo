@@ -1,8 +1,8 @@
 <?php
 // ========================================================================
 // PAHAL NGO Website - Main Page & Contact Form Processor
-// Version: 3.5 (Advanced UI Animations & Visuals)
-// Features: Animated Gradients, Enhanced Hovers, Micro-interactions
+// Version: 3.6 (Styling Aligned with E-Waste/Blood Pages)
+// Features: Consistent Tailwind UI, Animated Gradients, Enhanced Hovers, Micro-interactions
 // Backend: PHP mail(), CSRF, Honeypot, Logging
 // ========================================================================
 
@@ -59,18 +59,29 @@ function generate_csrf_token(): string {
  */
 function validate_csrf_token(?string $submittedToken): bool {
     if (empty($submittedToken) || !isset($_SESSION[CSRF_TOKEN_NAME]) || empty($_SESSION[CSRF_TOKEN_NAME])) { return false; }
-    return hash_equals($_SESSION[CSRF_TOKEN_NAME], $submittedToken);
+    // Use hash_equals for timing attack resistance
+    $result = hash_equals($_SESSION[CSRF_TOKEN_NAME], $submittedToken);
+    // Always unset the session token after it's used/compared
+    unset($_SESSION[CSRF_TOKEN_NAME]);
+    return $result;
 }
 
 /**
  * Sanitize input string.
  */
-function sanitize_string(string $input): string { return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES | ENT_HTML5, 'UTF-8'); }
+function sanitize_string(?string $input): string {
+    if ($input === null) return '';
+    return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
 
 /**
  * Sanitize email address.
  */
-function sanitize_email(string $email): string { $clean = filter_var(trim($email), FILTER_SANITIZE_EMAIL); return filter_var($clean, FILTER_VALIDATE_EMAIL) ? $clean : ''; }
+function sanitize_email(?string $email): string {
+    if ($email === null) return '';
+    $clean = filter_var(trim($email), FILTER_SANITIZE_EMAIL);
+    return filter_var($clean, FILTER_VALIDATE_EMAIL) ? $clean : '';
+}
 
 /**
  * Validates input data based on rules.
@@ -79,18 +90,30 @@ function validate_data(array $data, array $rules): array {
      $errors = [];
      foreach ($rules as $field => $ruleString) {
         $value = $data[$field] ?? null; $ruleList = explode('|', $ruleString); $fieldNameFormatted = ucfirst(str_replace('_', ' ', $field));
+
+        if (is_string($value) && $ruleString !== 'required') { // Don't trim required check yet
+            $value = trim($value);
+            if ($value === '') $value = null; // Treat empty string after trim as null for non-required checks
+        }
+
         foreach ($ruleList as $rule) {
             $params = []; if (strpos($rule, ':') !== false) { list($rule, $paramString) = explode(':', $rule, 2); $params = explode(',', $paramString); }
             $isValid = true; $errorMessage = '';
-            switch ($rule) { // Simplified for brevity - assume full rules exist
+            switch ($rule) {
                 case 'required': if ($value === null || $value === '' || (is_array($value) && empty($value))) { $isValid = false; $errorMessage = "{$fieldNameFormatted} is required."; } break;
-                case 'email': if (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) { $isValid = false; $errorMessage = "Please enter a valid email."; } break;
+                case 'email': if ($value !== null && !filter_var($value, FILTER_VALIDATE_EMAIL)) { $isValid = false; $errorMessage = "Please enter a valid email."; } break;
                 case 'minLength': if ($value !== null && mb_strlen((string)$value, 'UTF-8') < (int)$params[0]) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must be at least {$params[0]} characters."; } break;
                 case 'maxLength': if ($value !== null && mb_strlen((string)$value, 'UTF-8') > (int)$params[0]) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must not exceed {$params[0]} characters."; } break;
                 case 'alpha_space': if (!empty($value) && !preg_match('/^[\p{L}\s]+$/u', $value)) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must only contain letters and spaces."; } break;
                 case 'phone': if (!empty($value) && !preg_match('/^(\+?\d{1,3}[-.\s]?)?\(?\d{3,5}\)?[-.\s]?\d{3}[-.\s]?\d{3,4}(\s*(ext|x|extension)\s*\d+)?$/', $value)) { $isValid = false; $errorMessage = "Invalid phone format."; } break;
-                case 'in': if (!empty($value) && !in_array($value, $params)) { $isValid = false; $errorMessage = "Invalid selection for {$fieldNameFormatted}."; } break;
-                case 'required_without': $otherField = $params[0] ?? null; if ($otherField && empty($value) && empty($data[$otherField] ?? null)) { $isValid = false; $errorMessage = "Either {$fieldNameFormatted} or " . ucfirst(str_replace('_',' ',$otherField)). " is required."; } break;
+                case 'in': if ($value !== null && is_array($params) && !in_array($value, $params)) { $isValid = false; $errorMessage = "Invalid selection for {$fieldNameFormatted}."; } break;
+                 case 'required_without':
+                     $otherField = $params[0] ?? null;
+                      if ($otherField && ($value === null || trim($value) === '') && empty(trim($data[$otherField] ?? ''))) {
+                         $isValid = false;
+                         $errorMessage = "Either {$fieldNameFormatted} or " . ucfirst(str_replace('_', ' ', $otherField)) . " is required.";
+                     }
+                     break;
                 default: log_message("Unknown validation rule '{$rule}' for field '{$field}'.", LOG_FILE_ERROR); break;
             }
             if (!$isValid && !isset($errors[$field])) { $errors[$field] = $errorMessage; break; }
@@ -107,8 +130,10 @@ function send_email(string $to, string $subject, string $body, string $replyToEm
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { log_message("{$logContext} Invalid recipient: {$to}", LOG_FILE_ERROR); return false; }
     if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) { log_message("{$logContext} Invalid sender in config: {$senderEmail}", LOG_FILE_ERROR); return false; }
     $headers = "From: =?UTF-8?B?".base64_encode($senderName)."?= <{$senderEmail}>\r\n";
-    if (!empty($replyToEmail) && filter_var($replyToEmail, FILTER_VALIDATE_EMAIL)) { $replyToFormatted = $replyToName ? "=?UTF-8?B?".base64_encode($replyToName)."?= <{$replyToEmail}>" : $replyToEmail; $headers .= "Reply-To: {$replyToFormatted}\r\n"; }
-    else { $headers .= "Reply-To: {$senderName} <{$senderEmail}>\r\n"; }
+    $replyToValidEmail = sanitize_email($replyToEmail); // Sanitize reply-to
+    $replyToHeader = "";
+    if (!empty($replyToValidEmail)) { $replyToNameClean = sanitize_string($replyToName); $replyToFormatted = $replyToNameClean ? "=?UTF-8?B?".base64_encode($replyToNameClean)."?= <{$replyToValidEmail}>" : $replyToValidEmail; $headers .= "Reply-To: {$replyToFormatted}\r\n"; }
+    else { $headers .= "Reply-To: =?UTF-8?B?".base64_encode($senderName)."?= <{$senderEmail}>\r\n"; } // Fallback reply-to
     $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n"; $headers .= "MIME-Version: 1.0\r\n"; $headers .= "Content-Type: text/plain; charset=UTF-8\r\n"; $headers .= "Content-Transfer-Encoding: 8bit\r\n";
     $encodedSubject = "=?UTF-8?B?".base64_encode($subject)."?="; $wrapped_body = wordwrap($body, 70, "\r\n");
     if (@mail($to, $encodedSubject, $wrapped_body, $headers, "-f{$senderEmail}")) { log_message("{$logContext} Email submitted via mail() to {$to}. Subject: {$subject}", LOG_FILE_CONTACT); return true; }
@@ -130,28 +155,38 @@ function get_form_value(string $formId, string $fieldName, string $default = '')
 function get_form_status_html(string $formId): string {
     global $form_messages; if (empty($form_messages[$formId])) return '';
     $message = $form_messages[$formId]; $isSuccess = ($message['type'] === 'success');
-    $baseClasses = 'form-message border px-4 py-3 rounded-lg relative mb-6 text-sm shadow-lg transition-all duration-500 transform opacity-0 translate-y-2 scale-95'; // Start smaller for animation
-    $typeClasses = $isSuccess ? 'bg-green-100 border-green-500 text-green-900 dark:bg-green-900/40 dark:border-green-600 dark:text-green-100' : 'bg-red-100 border-red-500 text-red-900 dark:bg-red-900/40 dark:border-red-600 dark:text-red-100';
-    $iconClass = $isSuccess ? 'fas fa-check-circle text-green-500 dark:text-green-400' : 'fas fa-exclamation-triangle text-red-500 dark:text-red-400';
+    // Adjusted classes for Main page's specific theme-color variables
+    $baseClasses = 'form-message border px-4 py-3 rounded-lg relative mb-6 text-sm shadow-lg opacity-0 transform translate-y-2 scale-95'; // Start smaller for animation
+    $typeClasses = $isSuccess ? 'bg-theme-success/10 border-theme-success text-theme-success dark:bg-theme-success/30' : 'bg-theme-accent/10 border-theme-accent text-theme-accent dark:bg-theme-accent/30';
+    $iconClass = $isSuccess ? 'fas fa-check-circle text-theme-success' : 'fas fa-exclamation-triangle text-theme-accent';
     $title = $isSuccess ? 'Success!' : 'Error:';
     // data-form-message-id triggers JS animation
     return "<div class=\"{$baseClasses} {$typeClasses}\" role=\"alert\" data-form-message-id=\"{$formId}\"><strong class=\"font-bold flex items-center text-base\"><i class=\"{$iconClass} mr-2 text-xl animate-pulse\"></i>{$title}</strong> <span class=\"block sm:inline mt-1 ml-8\">" . htmlspecialchars($message['text']) . "</span></div>";
 }
+
 
 /**
  * Generates HTML for a field error message with accessibility link.
  */
 function get_field_error_html(string $formId, string $fieldName): string {
     global $form_errors; $errorId = htmlspecialchars($formId . '_' . $fieldName . '_error');
-    if (isset($form_errors[$formId][$fieldName])) { return '<p class="text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1 animate-fade-in"><i class="fas fa-exclamation-circle text-xs"></i>' . htmlspecialchars($form_errors[$formId][$fieldName]) . '</p>'; } return '';
+    if (isset($form_errors[$formId][$fieldName])) {
+        // Use classes matching Main page's theme colors
+        return '<p class="text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1 animate-fade-in"><i class="fas fa-exclamation-circle text-xs"></i>' . htmlspecialchars($form_errors[$formId][$fieldName]) . '</p>';
+    } return '';
 }
 
 /**
  * Returns CSS classes for field highlighting based on errors.
  */
 function get_field_error_class(string $formId, string $fieldName): string {
-     global $form_errors; $base = 'form-input'; $error = 'form-input-error'; return isset($form_errors[$formId][$fieldName]) ? ($base . ' ' . $error) : $base;
+     global $form_errors;
+     // Use base form-input class + error class if error exists
+     $base = 'form-input';
+     $error = 'form-input-error'; // This class is defined in @layer utilities
+     return isset($form_errors[$formId][$fieldName]) ? ($base . ' ' . $error) : $base;
 }
+
 
 /**
  * Gets ARIA describedby attribute value if error exists.
@@ -174,34 +209,271 @@ $csrf_token = generate_csrf_token();
 
 // --- Form Processing Logic (POST Request) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // ... (Keep your existing, validated POST handling logic here) ...
-    // This includes: Security Checks, Form Identification, Sanitization,
-    // Validation, Email Sending, Logging, Setting Session Variables, Redirect.
+    $submitted_form_id = sanitize_string($_POST['form_id'] ?? '');
+    $submitted_token = $_POST[CSRF_TOKEN_NAME] ?? null;
+    $honeypot_value = sanitize_string($_POST[HONEYPOT_FIELD_NAME] ?? ''); // Sanitize honeypot
+    $logContext = "[Main Page POST]"; // Default context
+
+     // Security Checks
+    if (!empty($honeypot_value)) {
+        log_message("{$logContext} Honeypot triggered. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+         // Act like success to spambots
+        $_SESSION['form_messages'][$submitted_form_id] = ['type' => 'success', 'text' => 'Thank you for your submission!'];
+        header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . "#" . urlencode($submitted_form_id), true, 303);
+        exit;
+     }
+     // validate_csrf_token now unsets the token upon any comparison attempt
+     if (!validate_csrf_token($submitted_token)) {
+        log_message("{$logContext} Invalid CSRF token. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+        // Invalidate the form submission attempt
+        $displayFormId = !empty($submitted_form_id) ? $submitted_form_id : 'general_error'; // Fallback ID
+        $_SESSION['form_messages'][$displayFormId] = ['type' => 'error', 'text' => 'Security validation failed. Please refresh the page and try submitting the form again.'];
+         // Keep submitted data if errors occurred, except for sensitive fields
+         if (isset($_POST)) {
+             $temp_data = $_POST;
+             unset($temp_data[CSRF_TOKEN_NAME]); // Don't keep the invalid token
+             unset($temp_data[HONEYPOT_FIELD_NAME]); // Don't keep honeypot value
+             // Sanitize again before storing in session
+             $sanitized_temp_data = [];
+             foreach($temp_data as $key => $value) {
+                 if (is_string($value)) { // Only sanitize strings
+                      // Simple check if it looks like an email or phone to use appropriate sanitizer
+                     if (filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                         $sanitized_temp_data[$key] = sanitize_email($value);
+                     } else {
+                         $sanitized_temp_data[$key] = sanitize_string($value);
+                     }
+                 } else {
+                     $sanitized_temp_data[$key] = $value; // Keep non-strings as is (like checkboxes)
+                 }
+             }
+            $_SESSION['form_submissions'][$displayFormId] = $sanitized_temp_data;
+         }
+
+        header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . "#" . urlencode($displayFormId), true, 303); // Use 303
+        exit;
+     }
+     // CSRF token was valid and has been unset by validate_csrf_token().
+     // A new token will be generated on the subsequent GET request.
+
+
+    // --- Process Contact Form ---
+    if ($submitted_form_id === 'contact_form') {
+        $form_id = 'contact_form';
+        $logContext = "[Contact Form]";
+        // Sanitize
+        $contact_name = sanitize_string($_POST['name'] ?? '');
+        $contact_email = sanitize_email($_POST['email'] ?? '');
+        $contact_message = sanitize_string($_POST['message'] ?? '');
+
+        // Store submitted data before validation for repopulation on error
+        $submitted_data = ['name' => $contact_name, 'email' => $contact_email, 'message' => $contact_message];
+
+        // Validate
+        $rules = [
+            'name' => 'required|alpha_space|minLength:2|maxLength:100',
+            'email' => 'required|email|maxLength:255',
+            'message' => 'required|minLength:10|maxLength:2000',
+        ];
+        $validation_errors = validate_data($submitted_data, $rules);
+        $form_errors[$form_id] = $validation_errors;
+
+        // Process if valid
+        if (empty($validation_errors)) {
+            $to = RECIPIENT_EMAIL_CONTACT;
+            $subject = "Website Contact Form: " . $contact_name;
+            $body = "Message from website contact form:\n\n"
+                  . "Name: {$contact_name}\n"
+                  . "Email: {$contact_email}\n"
+                  . "Message:\n{$contact_message}\n"
+                  . "\n-------------------------------------------------\n"
+                  . "Submitted By IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}\n"
+                  . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
+                  . "-------------------------------------------------\n";
+
+            if (send_email($to, $subject, $body, $contact_email, $contact_name, $logContext)) {
+                $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you, {$contact_name}! Your message has been sent."];
+                log_message("{$logContext} Success. Name: {$contact_name}, Email: {$contact_email}.", LOG_FILE_CONTACT);
+                 // Clear submitted data on success
+                unset($submitted_data);
+            } else {
+                $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Sorry, {$contact_name}, there was an error sending your message. Please try again later or contact us directly."];
+                // Error logged within send_email()
+            }
+        } else {
+            // Validation errors occurred
+            $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the " . count($validation_errors) . " error(s) below to send your message."];
+            log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors) . ". IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+             // Submitted data is kept automatically by the POST handling logic below
+        }
+        $_SESSION['scroll_to'] = '#contact'; // Set scroll target
+    }
+
+    // --- Process Volunteer Form ---
+    elseif ($submitted_form_id === 'volunteer_form') {
+         $form_id = 'volunteer_form';
+         $logContext = "[Volunteer Form]";
+        // Sanitize
+        $volunteer_name = sanitize_string($_POST['volunteer_name'] ?? '');
+        $volunteer_email = sanitize_email($_POST['volunteer_email'] ?? '');
+        $volunteer_phone = sanitize_string($_POST['volunteer_phone'] ?? '');
+        $volunteer_area = sanitize_string($_POST['volunteer_area'] ?? '');
+        $volunteer_availability = sanitize_string($_POST['volunteer_availability'] ?? '');
+        $volunteer_message = sanitize_string($_POST['volunteer_message'] ?? '');
+
+        // Store submitted data before validation for repopulation on error
+        $submitted_data = [
+            'volunteer_name' => $volunteer_name, 'volunteer_email' => $volunteer_email, 'volunteer_phone' => $volunteer_phone,
+            'volunteer_area' => $volunteer_area, 'volunteer_availability' => $volunteer_availability,
+            'volunteer_message' => $volunteer_message
+        ];
+
+        // Validate
+        $rules = [
+            'volunteer_name' => 'required|alpha_space|minLength:2|maxLength:100',
+             // Require email OR phone
+            'volunteer_email' => 'required_without:volunteer_phone|email|maxLength:255',
+            'volunteer_phone' => 'required_without:volunteer_email|phone|maxLength:20',
+             // Example options for volunteer_area - expand as needed
+            'volunteer_area' => 'required|in:Health,Education,Environment,Communication Skills,Other',
+            'volunteer_availability' => 'required|maxLength:150',
+            'volunteer_message' => 'maxLength:2000',
+        ];
+        $validation_errors = validate_data($submitted_data, $rules);
+        $form_errors[$form_id] = $validation_errors;
+
+        // Process if valid
+        if (empty($validation_errors)) {
+             $to = RECIPIENT_EMAIL_VOLUNTEER;
+             $subject = "New Volunteer Interest: " . $volunteer_name;
+             $body = "Volunteer interest submitted via website:\n\n"
+                   . "Name: {$volunteer_name}\n"
+                   . "Email: " . (!empty($volunteer_email) ? $volunteer_email : "(Not Provided)") . "\n"
+                   . "Phone: " . (!empty($volunteer_phone) ? $volunteer_phone : "(Not Provided)") . "\n"
+                   . "Area of Interest: {$volunteer_area}\n"
+                   . "Availability: {$volunteer_availability}\n"
+                   . "Message:\n" . (!empty($volunteer_message) ? $volunteer_message : "(None)") . "\n"
+                   . "\n-------------------------------------------------\n"
+                   . "Submitted By IP: {$_SERVER['REMOTE_ADDR'] ?? 'Not available'}\n"
+                   . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
+                   . "-------------------------------------------------\n";
+
+             // Use volunteer email as reply-to if provided, otherwise use default sender
+             $replyToEmail = !empty($volunteer_email) ? $volunteer_email : SENDER_EMAIL_DEFAULT;
+
+             if (send_email($to, $subject, $body, $replyToEmail, $volunteer_name, $logContext)) {
+                 $_SESSION['form_messages'][$form_id] = ['type' => 'success', 'text' => "Thank you, {$volunteer_name}! Your volunteer interest has been registered. We will be in touch soon."];
+                 log_message("{$logContext} Success. Name: {$volunteer_name}, Area: {$volunteer_area}.", LOG_FILE_VOLUNTEER);
+                  // Clear submitted data on success
+                 unset($submitted_data);
+             } else {
+                 $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Sorry, {$volunteer_name}, there was an error registering your interest. Please try again later or contact us directly."];
+                 // Error logged within send_email()
+             }
+         } else {
+             // Validation errors occurred
+             $_SESSION['form_messages'][$form_id] = ['type' => 'error', 'text' => "Please correct the " . count($validation_errors) . " error(s) below to register your interest."];
+             log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors) . ". IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+             // Submitted data is kept automatically by the POST handling logic below
+        }
+         $_SESSION['scroll_to'] = '#volunteer-section'; // Set scroll target
+    }
+
+    // --- Post-Processing & Redirect ---
+    // Store form results in session (messages and errors)
+     $_SESSION['form_messages'] = $form_messages;
+     $_SESSION['form_errors'] = $form_errors;
+
+     // Store submitted data only if errors occurred for the form that was just processed
+     if (isset($form_errors[$submitted_form_id]) && !empty($form_errors[$submitted_form_id])) {
+         $_SESSION['form_submissions'][$submitted_form_id] = $submitted_data ?? []; // Store submitted data if available
+     } else {
+         // If no errors for the submitted form, clear any old submissions for that form
+         if (isset($_SESSION['form_submissions'][$submitted_form_id])) {
+              unset($_SESSION['form_submissions'][$submitted_form_id]);
+         }
+     }
+
+     // Get scroll target and clear it from session
+     $scrollTarget = $_SESSION['scroll_to'] ?? '';
+     unset($_SESSION['scroll_to']);
+
+     // Redirect using PRG pattern (HTTP 303 See Other is best practice for POST redirects)
+     header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . $scrollTarget, true, 303);
+     exit; // Terminate script after redirect
+
 } else {
-    // --- GET Request: Retrieve session data ---
+    // --- GET Request: Retrieve session data after potential redirect ---
+    // Retrieve form results stored in session by the POST handler
     if (isset($_SESSION['form_messages'])) { $form_messages = $_SESSION['form_messages']; unset($_SESSION['form_messages']); } else { $form_messages = []; }
     if (isset($_SESSION['form_errors'])) { $form_errors = $_SESSION['form_errors']; unset($_SESSION['form_errors']); } else { $form_errors = []; }
+    // Retrieve submitted data only if redirection happened due to errors
     if (isset($_SESSION['form_submissions'])) { $form_submissions = $_SESSION['form_submissions']; unset($_SESSION['form_submissions']); } else { $form_submissions = []; }
-    $csrf_token = generate_csrf_token(); // Ensure token exists for GET
+    // Ensure a CSRF token is available for the form(s) to be displayed
+    $csrf_token = generate_csrf_token();
 }
 
-// --- Prepare Form Data for HTML Template ---
+// --- Prepare Form Data for HTML Template (using helper function) ---
+// These variables are used to pre-fill form fields, typically after a validation error
 $contact_form_name_value = get_form_value('contact_form', 'name');
 $contact_form_email_value = get_form_value('contact_form', 'email');
 $contact_form_message_value = get_form_value('contact_form', 'message');
 $volunteer_form_name_value = get_form_value('volunteer_form', 'volunteer_name');
 $volunteer_form_email_value = get_form_value('volunteer_form', 'volunteer_email');
 $volunteer_form_phone_value = get_form_value('volunteer_form', 'volunteer_phone');
-$volunteer_form_area_value = get_form_value('volunteer_form', 'volunteer_area');
+$volunteer_form_area_value = get_form_value('volunteer_form', 'volunteer_area'); // Should be 'Health', 'Education', etc.
 $volunteer_form_availability_value = get_form_value('volunteer_form', 'volunteer_availability');
 $volunteer_form_message_value = get_form_value('volunteer_form', 'volunteer_message');
 
+
 // --- Dummy Data (Keep Existing) ---
-$news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /* ... */ ];
+$news_items = [
+    ['title' => 'Successful Health Camp Organized in Maqsudan', 'excerpt' => 'PAHAL NGO conducted a free health check-up camp offering consultations, basic tests, and awareness sessions...', 'date' => '2023-10-25', 'image' => 'https://via.placeholder.com/400x250/16a34a/d1fae5?text=Health+Camp', 'link' => '#news-health-camp'],
+    ['title' => 'E-Waste Collection Drive Receives Overwhelming Response', 'excerpt' => 'Our recent e-waste collection initiative saw significant community participation, ensuring responsible disposal...', 'date' => '2023-11-10', 'image' => 'https://via.placeholder.com/400x250/059669/d1fae5?text=E-Waste+Drive', 'link' => 'e-waste.php#news'],
+    ['title' => 'Workshop on Communication Skills for College Students', 'excerpt' => 'PAHAL\'s communication experts led an engaging workshop focusing on public speaking and interpersonal skills...', 'date' => '2023-11-05', 'image' => 'https://via.placeholder.com/400x250/6366f1/e0e7ff?text=Communication+Workshop', 'link' => '#news-communication'],
+    ['title' => 'Blood Donation Camp Saves Multiple Lives', 'excerpt' => 'Thanks to generous donors, our latest blood donation camp successfully collected units vital for local hospitals...', 'date' => '2023-09-20', 'image' => 'https://via.placeholder.com/400x250/e11d48/fee2e2?text=Blood+Camp', 'link' => 'blood-donation.php#news'],
+];
+
+$gallery_images = [
+    ['src' => 'https://via.placeholder.com/800x500/059669/ffffff?text=Gallery+Image+1', 'alt' => 'PAHAL Activity 1'],
+    ['src' => 'https://via.placeholder.com/800x500/6366f1/ffffff?text=Gallery+Image+2', 'alt' => 'PAHAL Activity 2'],
+    ['src' => 'https://via.placeholder.com/800x500/e11d48/ffffff?text=Gallery+Image+3', 'alt' => 'PAHAL Activity 3'],
+    ['src' => 'https://via.placeholder.com/800x500/16a34a/ffffff?text=Gallery+Image+4', 'alt' => 'PAHAL Activity 4'],
+    ['src' => 'https://via.placeholder.com/800x500/0ea5e9/ffffff?text=Gallery+Image+5', 'alt' => 'PAHAL Activity 5'],
+    ['src' => 'https://via.placeholder.com/800x500/f59e0b/ffffff?text=Gallery+Image+6', 'alt' => 'PAHAL Activity 6'],
+    ['src' => 'https://via.placeholder.com/800x500/34d399/ffffff?text=Gallery+Image+7', 'alt' => 'PAHAL Activity 7'],
+    ['src' => 'https://via.placeholder.com/800x500/a78bfa/ffffff?text=Gallery+Image+8', 'alt' => 'PAHAL Activity 8'],
+];
+
+$associates = [
+    ['img' => 'https://via.placeholder.com/150x80/ffffff/1f2937?text=Partner+1', 'name' => 'Local Hospital'],
+    ['img' => 'https://via.placeholder.com/150x80/ffffff/1f2937?text=Partner+2', 'name' => 'Community Center'],
+    ['img' => 'https://via.placeholder.com/150x80/ffffff/1f2937?text=Partner+3', 'name' => 'Educational Institute'],
+    ['img' => 'https://via.placeholder.com/150x80/ffffff/1f2937?text=Partner+4', 'name' => 'Corporate Sponsor'],
+    ['img' => 'https://via.placeholder.com/150x80/ffffff/1f2937?text=Partner+5', 'name' => 'Govt. Department'],
+];
+
+
+// Define theme colors using PHP variables for use in Tailwind config
+$primary_color = '#059669'; $primary_hover = '#047857'; $primary_focus = 'rgba(5, 150, 105, 0.3)'; // Emerald
+$secondary_color = '#6366f1'; $secondary_hover = '#4f46e5'; // Indigo
+$accent_color = '#e11d48'; $accent_hover = '#be123c'; // Rose
+$success_color = '#16a34a'; // Green
+$warning_color = '#f59e0b'; // Amber
+$info_color = '#0ea5e9'; // Sky
+$bg_light = '#f8fafc'; $bg_dark = '#0b1120'; // Slate
+$surface_light = '#ffffff'; $surface_alt_light = '#f1f5f9'; // White, Slate 100
+$surface_dark = '#1e293b'; $surface_alt_dark = '#334155'; // Slate 800, 700
+$text_light = '#1e293b'; $text_muted_light = '#64748b'; $text_heading_light = '#0f172a'; // Slate 800, 500, 900
+$text_dark = '#cbd5e1'; $text_muted_dark = '#94a3b8'; $text_heading_dark = '#f1f5f9'; // Slate 300, 400, 100
+$border_light = '#e2e8f0'; $border_light_light = '#f1f5f9'; // Slate 200, 100
+$border_dark = '#475569'; $border_light_dark = '#334155'; // Slate 600, 700
+$glow_color_light = 'rgba(5, 150, 105, 0.4)'; // Primary glow light
+$glow_color_dark = 'rgba(52, 211, 153, 0.5)'; // Primary glow dark (using emerald 400)
 
 ?>
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth"> <!-- Added dark class toggle via JS -->
+<html lang="en" class="scroll-smooth"> <!-- The 'dark' class will be added/removed by JS -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -210,45 +482,34 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     <meta name="keywords" content="<?= htmlspecialchars($page_keywords) ?>">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f172a"> <!-- Slate 900 -->
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1120"> <!-- Using darker slate bg -->
 
     <!-- Open Graph / Social Media Meta Tags -->
     <meta property="og:title" content="<?= htmlspecialchars($page_title) ?>"/>
     <meta property="og:description" content="<?= htmlspecialchars($page_description) ?>"/>
     <meta property="og:type" content="website"/>
-    <meta property="og:url" content="https://your-pahal-domain.com/"> <!-- CHANGE -->
-    <meta property="og:image" content="https://your-pahal-domain.com/images/pahal-og-enhanced.jpg"> <!-- CHANGE -->
+    <meta property="og:url" content="https://your-pahal-domain.com/"/> <!-- CHANGE THIS URL -->
+    <meta property="og:image" content="https://your-pahal-domain.com/images/pahal-og-enhanced.jpg"/> <!-- CHANGE THIS IMAGE URL -->
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:site_name" content="PAHAL NGO Jalandhar">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://your-pahal-domain.com/"> <!-- CHANGE -->
+    <meta name="twitter:url" content="https://your-pahal-domain.com/"/> <!-- CHANGE THIS URL -->
     <meta name="twitter:title" content="<?= htmlspecialchars($page_title) ?>">
     <meta name="twitter:description" content="<?= htmlspecialchars($page_description) ?>">
-    <meta name="twitter:image" content="https://your-pahal-domain.com/images/pahal-twitter-enhanced.jpg"> <!-- CHANGE -->
+    <meta name="twitter:image" content="https://your-pahal-domain.com/images/pahal-twitter-enhanced.jpg"/> <!-- CHANGE THIS IMAGE URL -->
 
     <!-- Favicon -->
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="icon" href="icon.webp" sizes="any"> <!-- Use the actual icon path -->
+    <link rel="icon" type="image/svg+xml" href="icon.svg"> <!-- If you have an SVG icon -->
+    <link rel="apple-touch-icon" href="apple-touch-icon.png"> <!-- Add apple-touch-icon -->
+    <link rel="manifest" href="/site.webmanifest"> <!-- Add webmanifest -->
+
 
     <!-- Tailwind CSS CDN with Forms Plugin -->
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-    
-    <!-- Fix for Tailwind CSS processing -->
-    <script>
-        // This ensures Tailwind processes the styles correctly
-        if (typeof tailwind !== 'undefined') {
-            console.log("Tailwind CSS loaded successfully");
-        } else {
-            console.error("Tailwind CSS failed to load");
-            // Fallback to load Tailwind again if needed
-            document.write('<script src="https://cdn.tailwindcss.com?plugins=forms"><\/script>');
-        }
-    </script>
 
     <!-- Google Fonts (Poppins & Fira Code) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -262,13 +523,15 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.css">
 
     <script>
-        // Tailwind Config (Enhanced with more colors/animations)
+        // Tailwind Config - Uses PHP variables for colors
         tailwind.config = {
-            darkMode: 'class',
+            darkMode: 'class', // Enable dark mode based on 'dark' class
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Poppins', 'sans-serif'], heading: ['Poppins', 'sans-serif'], mono: ['Fira Code', 'monospace'],
+                        sans: ['Poppins', 'sans-serif'],
+                        heading: ['Poppins', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
                     },
                     colors: { // Define semantic names linked to CSS Variables
                         'theme-primary': 'var(--color-primary)', 'theme-primary-hover': 'var(--color-primary-hover)', 'theme-primary-focus': 'var(--color-primary-focus)',
@@ -281,12 +544,21 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                         'theme-glow': 'var(--color-glow)',
                     },
                     animation: {
-                        'fade-in': 'fadeIn 0.6s ease-out forwards', 'fade-in-down': 'fadeInDown 0.7s ease-out forwards', 'fade-in-up': 'fadeInUp 0.7s ease-out forwards',
-                        'slide-in-left': 'slideInLeft 0.7s ease-out forwards', 'slide-in-right': 'slideInRight 0.7s ease-out forwards',
-                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite', 'form-message-in': 'formMessageIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards', // Smoother ease
-                        'bounce-subtle': 'bounceSubtle 2s infinite ease-in-out', 'gradient-bg': 'gradientBg 15s ease infinite', // Animated gradient
-                        'glow-pulse': 'glowPulse 2.5s infinite alternate ease-in-out', // Glow animation
-                        'icon-bounce': 'iconBounce 0.6s ease-out', // For button icons
+                        'fade-in': 'fadeIn 0.6s ease-out forwards',
+                        'fade-in-down': 'fadeInDown 0.7s ease-out forwards',
+                        'fade-in-up': 'fadeInUp 0.7s ease-out forwards',
+                        'slide-in-left': 'slideInLeft 0.7s ease-out forwards',
+                        'slide-in-right': 'slideInRight 0.7s ease-out forwards',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                         // Added form message animation
+                         'form-message-in': 'formMessageIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards', // Smoother ease
+                        'bounce-subtle': 'bounceSubtle 2s infinite ease-in-out',
+                         // Added gradient animation
+                         'gradient-bg': 'gradientBg 15s ease infinite',
+                         // Added glow animation
+                         'glow-pulse': 'glowPulse 2.5s infinite alternate ease-in-out',
+                         // Added icon bounce animation
+                         'icon-bounce': 'iconBounce 0.6s ease-out', // For button icons
                     },
                     keyframes: {
                         fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
@@ -294,94 +566,133 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                         fadeInUp: { '0%': { opacity: '0', transform: 'translateY(25px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
                         slideInLeft: { '0%': { opacity: '0', transform: 'translateX(-40px)' }, '100%': { opacity: '1', transform: 'translateX(0)' } },
                         slideInRight: { '0%': { opacity: '0', transform: 'translateX(40px)' }, '100%': { opacity: '1', transform: 'translateX(0)' } },
+                         // Keyframes for form message animation
                         formMessageIn: { '0%': { opacity: '0', transform: 'translateY(15px) scale(0.95)' }, '100%': { opacity: '1', transform: 'translateY(0) scale(1)' } },
                         bounceSubtle: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },
-                        gradientBg: { // Keyframes for animated gradient
-                           '0%': { backgroundPosition: '0% 50%' }, '50%': { backgroundPosition: '100% 50%' }, '100%': { backgroundPosition: '0% 50%' },
+                         // Keyframes for animated gradient
+                        gradientBg: {
+                           '0%': { backgroundPosition: '0% 50%' },
+                           '50%': { backgroundPosition: '100% 50%' },
+                           '100%': { backgroundPosition: '0% 50%' },
                         },
-                        glowPulse: { // Keyframes for glow effect
-                            '0%': { boxShadow: '0 0 5px 0px var(--color-glow)' }, '100%': { boxShadow: '0 0 20px 5px var(--color-glow)' },
+                        // Keyframes for glow effect
+                         glowPulse: {
+                            '0%': { boxShadow: '0 0 5px 0px var(--color-glow)' },
+                            '100%': { boxShadow: '0 0 20px 5px var(--color-glow)' },
                         },
-                        iconBounce: { // Keyframes for icon bounce on hover
-                             '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-3px)' },
+                        // Keyframes for icon bounce on hover
+                        iconBounce: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-3px)' },
                         }
                     },
                     boxShadow: { // Keep existing + add focus shadow variable
-                        'card': '0 5px 15px rgba(0, 0, 0, 0.07)', 'card-dark': '0 8px 25px rgba(0, 0, 0, 0.3)',
-                        'input-focus': '0 0 0 3px var(--color-primary-focus)',
+                        'card': '0 5px 15px rgba(0, 0, 0, 0.07)', // Light theme card shadow
+                        'card-dark': '0 8px 25px rgba(0, 0, 0, 0.3)', // Dark theme card shadow
+                        'input-focus': '0 0 0 3px var(--color-primary-focus)', // Focus ring shadow using CSS variable
                     },
                     container: { // Keep previous container settings
-                      center: true, padding: { DEFAULT: '1rem', sm: '1.5rem', lg: '2rem' }, screens: { sm: '640px', md: '768px', lg: '1024px', xl: '1280px' },
+                      center: true,
+                      padding: { DEFAULT: '1rem', sm: '1.5rem', lg: '2rem' },
+                      screens: { sm: '640px', md: '768px', lg: '1024px', xl: '1280px' },
                     },
                 }
             }
         }
     </script>
     <style type="text/tailwindcss">
-        /* Theme Variables - More Vibrant Palette */
+        /* Theme Variables - More Vibrant Palette (Matching E-Waste/Blood Structure) */
         :root { /* Light Theme */
-          --color-primary: #059669; /* Emerald 600 */ --color-primary-hover: #047857; /* Emerald 700 */ --color-primary-focus: rgba(5, 150, 105, 0.3);
-          --color-secondary: #6366f1; /* Indigo 500 */ --color-secondary-hover: #4f46e5; /* Indigo 600 */
-          --color-accent: #e11d48; /* Rose 600 */ --color-accent-hover: #be123c; /* Rose 700 */
-          --color-success: #16a34a; /* Green 600 */ --color-warning: #f59e0b; /* Amber 500 */ --color-info: #0ea5e9; /* Sky 500 */
-          --color-bg: #f8fafc; /* Slate 50 */
-          --color-surface: #ffffff; --color-surface-alt: #f1f5f9; /* Slate 100 */
-          --color-text: #1e293b; /* Slate 800 */ --color-text-muted: #64748b; /* Slate 500 */ --color-text-heading: #0f172a; /* Slate 900 */
-          --color-border: #e2e8f0; /* Slate 200 */ --color-border-light: #f1f5f9; /* Slate 100 */
-          --color-glow: rgba(5, 150, 105, 0.4); /* Primary glow color */
-          --scrollbar-thumb: #cbd5e1; /* Slate 300 */ --scrollbar-track: #f1f5f9; /* Slate 100 */
-          color-scheme: light;
+          --color-primary: <?= $primary_color ?>;
+          --color-primary-hover: <?= $primary_hover ?>;
+          --color-primary-focus: <?= $primary_focus ?>;
+          --color-secondary: <?= $secondary_color ?>;
+          --color-secondary-hover: <?= $secondary_hover ?>;
+          --color-accent: <?= $accent_color ?>;
+          --color-accent-hover: <?= $accent_hover ?>;
+          --color-success: <?= $success_color ?>;
+          --color-warning: <?= $warning_color ?>;
+          --color-info: <?= $info_color ?>;
+          --color-bg: <?= $bg_light ?>;
+          --color-surface: <?= $surface_light ?>;
+          --color-surface-alt: <?= $surface_alt_light ?>;
+          --color-text: <?= $text_light ?>;
+          --color-text-muted: <?= $text_muted_light ?>;
+          --color-text-heading: <?= $text_heading_light ?>;
+          --color-border: <?= $border_light ?>;
+          --color-border-light: <?= $border_light_light ?>;
+          --color-glow: <?= $glow_color_light ?>;
+          --scrollbar-thumb: #cbd5e1; /* Slate 300 */
+          --scrollbar-track: #f1f5f9; /* Slate 100 */
+          color-scheme: light; /* Hint browser for scrollbar, form controls etc. */
         }
 
         html.dark {
-          --color-primary: #34d399; /* Emerald 400 */ --color-primary-hover: #6ee7b7; /* Emerald 300 */ --color-primary-focus: rgba(52, 211, 153, 0.4);
-          --color-secondary: #a78bfa; /* Violet 400 */ --color-secondary-hover: #c4b5fd; /* Violet 300 */
-          --color-accent: #f87171; /* Red 400 */ --color-accent-hover: #fb7185; /* Rose 400 */
-          --color-success: #4ade80; /* Green 400 */ --color-warning: #facc15; /* Yellow 400 */ --color-info: #38bdf8; /* Sky 400 */
-          --color-bg: #0b1120; /* Darker Slate */
-          --color-surface: #1e293b; /* Slate 800 */ --color-surface-alt: #334155; /* Slate 700 */
-          --color-text: #cbd5e1; /* Slate 300 */ --color-text-muted: #94a3b8; /* Slate 400 */ --color-text-heading: #f1f5f9; /* Slate 100 */
-          --color-border: #475569; /* Slate 600 */ --color-border-light: #334155; /* Slate 700 */
-          --color-glow: rgba(52, 211, 153, 0.5);
-          --scrollbar-thumb: #475569; /* Slate 600 */ --scrollbar-track: #1e293b; /* Slate 800 */
-          color-scheme: dark;
+          --color-primary: #34d399; /* Emerald 400 */
+          --color-primary-hover: #6ee7b7; /* Emerald 300 */
+          --color-primary-focus: rgba(52, 211, 153, 0.4);
+          --color-secondary: #a78bfa; /* Violet 400 */
+          --color-secondary-hover: #c4b5fd; /* Violet 300 */
+          --color-accent: #f87171; /* Red 400 */
+          --color-accent-hover: #fb7185; /* Rose 400 */
+          --color-success: #4ade80; /* Green 400 */
+          --color-warning: #facc15; /* Yellow 400 */
+          --color-info: #38bdf8; /* Sky 400 */
+          --color-bg: <?= $bg_dark ?>; /* Darker Slate */
+          --color-surface: <?= $surface_dark ?>; /* Slate 800 */
+          --color-surface-alt: <?= $surface_alt_dark ?>; /* Slate 700 */
+          --color-text: <?= $text_dark ?>; /* Slate 300 */
+          --color-text-muted: <?= $text_muted_dark ?>; /* Slate 400 */
+          --color-text-heading: <?= $text_heading_dark ?>; /* Slate 100 */
+          --color-border: <?= $border_dark ?>; /* Slate 600 */
+          --color-border-light: <?= $border_light_dark ?>; /* Slate 700 */
+          --color-glow: <?= $glow_color_dark ?>;
+          --scrollbar-thumb: #475569; /* Slate 600 */
+          --scrollbar-track: #1e293b; /* Slate 800 */
+          color-scheme: dark; /* Hint browser */
         }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 10px; height: 10px; }
         ::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 5px; }
         ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 5px; border: 2px solid var(--scrollbar-track); }
-        ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--scrollbar-thumb) 75%, white); }
+        ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--scrollbar-thumb) 75%, white); } /* Subtle hover */
 
 
         @layer base {
             html { @apply scroll-smooth antialiased; }
             /* Add body padding top for fixed header AFTER header height is calculated in JS or set fixed */
-            body { @apply bg-theme-bg text-theme-text font-sans transition-colors duration-300 overflow-x-hidden pt-[70px]; } /* Added pt-[70px] here */
+            body { @apply bg-theme-bg text-theme-text font-sans transition-colors duration-300 overflow-x-hidden; padding-top: 70px; } /* Set padding top for fixed header */
             h1, h2, h3, h4, h5, h6 { @apply font-heading font-semibold text-theme-text-heading tracking-tight leading-tight; }
             h1 { @apply text-4xl md:text-5xl lg:text-6xl font-extrabold; } /* Bolder H1 */
             h2 { @apply text-3xl md:text-4xl font-bold mb-4; }
             h3 { @apply text-xl md:text-2xl font-bold text-theme-primary mb-4 mt-5; }
             h4 { @apply text-lg font-semibold text-theme-secondary mb-2; }
-            p { @apply mb-5 leading-relaxed text-base max-w-prose; }
+            p { @apply mb-5 leading-relaxed text-base; } /* Removed max-w-prose default */
             a { @apply text-theme-secondary hover:text-theme-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-theme-secondary/50 rounded-sm; transition-colors duration-200; }
-            a:not(.btn):not(.btn-secondary):not(.btn-outline):not(.nav-link):not(.footer-link) { /* More specific default link */
+            /* Style non-button/nav links */
+            a:not(.btn):not(.btn-secondary):not(.btn-outline):not(.nav-link):not(.footer-link) {
                  @apply underline decoration-theme-secondary/50 hover:decoration-theme-primary decoration-1 underline-offset-2;
             }
             hr { @apply border-theme-border/40 my-12; } /* Lighter border */
             blockquote { @apply border-l-4 border-theme-secondary bg-theme-surface-alt p-5 my-6 italic text-theme-text-muted shadow-inner rounded-r-md;}
             blockquote cite { @apply block not-italic mt-2 text-sm text-theme-text-muted/80;}
             address { @apply not-italic;}
+             /* Global focus style */
             *:focus-visible { @apply outline-none ring-2 ring-offset-2 ring-offset-theme-surface ring-theme-primary/70 rounded-md; }
+             /* Honeypot field hidden visually */
             .honeypot-field { @apply !absolute !-left-[9999px] !w-px !h-px !overflow-hidden !opacity-0; }
         }
 
         @layer components {
+            /* Standard Section Padding */
             .section-padding { @apply py-16 md:py-20 lg:py-24 px-4; }
+
+            /* Section Title Styling */
             .section-title { @apply text-center mb-12 md:mb-16 text-theme-primary; }
             .section-title-underline::after { content: ''; @apply block w-24 h-1 bg-gradient-to-r from-theme-secondary to-theme-accent mx-auto mt-4 rounded-full opacity-80; } /* Gradient underline */
 
-            /* Enhanced Buttons */
+            /* Button Styles */
             .btn { @apply relative inline-flex items-center justify-center px-7 py-3 border border-transparent text-base font-medium rounded-lg shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-surface overflow-hidden transition-all duration-300 ease-out transform hover:-translate-y-1 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed group; }
             .btn::before { /* Subtle gradient overlay */
                 content: ''; @apply absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity duration-300;
@@ -395,7 +706,8 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
              .btn-outline.secondary { @apply !text-theme-secondary hover:!bg-theme-secondary/10 focus-visible:ring-theme-secondary; } /* Outline secondary */
              .btn-icon { @apply p-2.5 rounded-full focus-visible:ring-offset-0; } /* Slightly larger icon button */
 
-            /* Enhanced Cards */
+
+            /* Card Styles */
             .card { @apply bg-theme-surface p-6 md:p-8 rounded-xl shadow-card dark:shadow-card-dark border border-theme-border/60 overflow-hidden relative transition-all duration-300; }
             .card-hover { @apply hover:shadow-xl dark:hover:shadow-2xl hover:border-theme-primary/50 hover:scale-[1.03] z-10; } /* Enhanced hover */
             .card::after { /* Subtle glow on hover preparation */
@@ -407,17 +719,20 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
             /* Panel with Glassmorphism */
             .panel { @apply bg-theme-surface/75 dark:bg-theme-surface/70 backdrop-blur-xl border border-theme-border/40 rounded-2xl shadow-lg p-6 md:p-8; }
 
-            /* Enhanced Forms */
+            /* Form Styles */
             .form-label { @apply block mb-1.5 text-sm font-medium text-theme-text-muted; }
             .form-label.required::after { content: '*'; @apply text-theme-accent ml-0.5; }
             .form-input { @apply block w-full px-4 py-2.5 rounded-lg border bg-theme-bg dark:bg-theme-surface/60 border-theme-border placeholder-theme-text-muted/70 text-theme-text shadow-sm transition duration-200 ease-in-out focus:border-theme-primary focus:ring-2 focus:ring-theme-primary/50 focus:outline-none disabled:opacity-60; }
             /* Autofill styles */
             input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, textarea:-webkit-autofill:hover, textarea:-webkit-autofill:focus, select:-webkit-autofill, select:-webkit-autofill:hover, select:-webkit-autofill:focus { -webkit-text-fill-color: var(--color-text); -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset; transition: background-color 5000s ease-in-out 0s; }
             html.dark input:-webkit-autofill, html.dark input:-webkit-autofill:hover, html.dark input:-webkit-autofill:focus, html.dark textarea:-webkit-autofill, html.dark textarea:-webkit-autofill:hover, html.dark textarea:-webkit-autofill:focus, html.dark select:-webkit-autofill, html.dark select:-webkit-autofill:hover, html.dark select:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset; }
-            select.form-input { /* Keep custom arrow if any, or rely on @tailwindcss/forms */ }
+            select.form-input { /* Rely on @tailwindcss/forms for default arrow */ }
             textarea.form-input { @apply min-h-[120px] resize-vertical; }
+             /* Error input class */
             .form-input-error { @apply !border-theme-accent ring-2 ring-theme-accent/50 focus:!border-theme-accent focus:!ring-theme-accent/50; }
-            .form-error-message { @apply text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1; } /* Error message style */
+             /* Error message class */
+            .form-error-message { @apply text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1; }
+            /* Form section card styling with border */
             .form-section { @apply card border-l-4 border-theme-primary mt-8; } /* Default border */
              #volunteer-section .form-section { @apply !border-theme-accent; } /* Volunteer form border */
              #contact .form-section { @apply !border-theme-secondary; } /* Contact form border */
@@ -438,16 +753,17 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
              .footer-social-icon { @apply text-xl transition duration-300 text-gray-400 hover:scale-110; } /* Social icons */
              .footer-bottom { @apply border-t border-gray-700/50 pt-8 mt-12 text-center text-sm text-gray-500; }
 
-            /* --- MOVED SECTION STYLES START --- */
+            /* --- SPECIFIC SECTION STYLES --- */
+             /* Header */
              #main-header { @apply fixed top-0 left-0 w-full bg-theme-surface/85 dark:bg-theme-bg/80 backdrop-blur-xl z-50 shadow-sm transition-all duration-300 border-b border-theme-border/30; min-height: 70px; }
              #main-header.scrolled { @apply shadow-lg bg-theme-surface/95 dark:bg-theme-bg/90 border-theme-border/50; }
-             /* body padding moved to @layer base */
+             /* body padding handled in @layer base */
 
               /* Navigation */
               #navbar ul li a { @apply text-theme-text-muted hover:text-theme-primary dark:hover:text-theme-primary font-medium py-2 relative transition duration-300 ease-in-out text-sm lg:text-base block lg:inline-block lg:py-0 px-3 lg:px-2 xl:px-3; } /* Adjusted padding */
               #navbar ul li a::after { content: ''; @apply absolute bottom-[-5px] left-0 w-0 h-[3px] bg-gradient-to-r from-theme-secondary to-theme-primary opacity-0 transition-all duration-300 ease-out rounded-full group-hover:opacity-100 group-hover:w-full; } /* Animated underline */
               #navbar ul li a.active { @apply text-theme-primary font-semibold; }
-              #navbar ul li a.active::after { @apply w-full opacity-100; }
+              #navbar ul li a.active::after { @apply w-full opacity-100; } /* Always underlined when active */
 
               /* Mobile menu toggle */
               .menu-toggle { @apply text-theme-text-muted hover:text-theme-primary transition-colors duration-200; }
@@ -460,6 +776,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
 
 
               /* Mobile Navbar container */
+               /* Use class for JS targeting */
               #navbar { @apply w-full lg:w-auto lg:flex hidden max-h-0 lg:max-h-screen overflow-hidden lg:overflow-visible absolute lg:relative top-[70px] lg:top-auto left-0 bg-theme-surface dark:bg-theme-surface lg:bg-transparent shadow-xl lg:shadow-none lg:border-none border-t border-theme-border transition-all duration-500 ease-in-out; }
               #navbar.open { @apply block; max-height: calc(100vh - 70px); /* JS could also set this */ } /* Ensure it opens */
 
@@ -554,12 +871,18 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
              .modal-content-box p strong { @apply font-medium text-theme-text-heading; }
              .modal-footer-note { @apply text-xs text-theme-text-muted text-center mt-6 italic; }
              .close-button { @apply absolute top-4 right-4 text-theme-text-muted hover:text-theme-accent p-1 rounded-full transition-colors focus-visible:ring-theme-accent; }
-            /* --- MOVED SECTION STYLES END --- */
         }
 
         @layer utilities {
             /* Animation Delays */
-             .delay-50 { animation-delay: 0.05s; } .delay-100 { animation-delay: 0.1s; } .delay-150 { animation-delay: 0.15s; } .delay-200 { animation-delay: 0.2s; } .delay-300 { animation-delay: 0.3s; } .delay-400 { animation-delay: 0.4s; } .delay-500 { animation-delay: 0.5s; } .delay-700 { animation-delay: 0.7s; }
+             .delay-50 { animation-delay: 0.05s; }
+             .delay-100 { animation-delay: 0.1s; }
+             .delay-150 { animation-delay: 0.15s; }
+             .delay-200 { animation-delay: 0.2s; }
+             .delay-300 { animation-delay: 0.3s; }
+             .delay-400 { animation-delay: 0.4s; }
+             .delay-500 { animation-delay: 0.5s; }
+             .delay-700 { animation-delay: 0.7s; }
 
              /* Animation on Scroll Classes */
              .animate-on-scroll { opacity: 0; transition: opacity 0.8s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); } /* Smoother ease */
@@ -574,112 +897,55 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                 background-size: 400% 400%;
                 animation: gradientBg 18s ease infinite;
              }
-             .animated-gradient-accent { /* Adjusted name */
+             .animated-gradient-accent { /* Used for Volunteer section */
                  background: linear-gradient(-45deg, var(--color-accent), var(--color-warning), var(--color-secondary), var(--color-accent));
                  background-size: 400% 400%;
                  animation: gradientBg 20s ease infinite;
              }
-             /* Corrected: volunteer section uses accent gradient */
-             .animated-gradient-secondary { @apply animated-gradient-accent; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+             /* NOTE: Volunteer section uses the ACCENT gradient, not secondary. Renamed .animated-gradient-secondary to .animated-gradient-accent */
+             /* If you need a separate secondary gradient, define it here */
 
         }
     </style>
     <!-- Schema.org JSON-LD -->
     <script type="application/ld+json">
     {
-      "@context": "https://schema.org", "@type": "NGO", "name": "PAHAL NGO", /* ... rest of schema ... */
-      "url": "https://your-pahal-domain.com/", "logo": "https://your-pahal-domain.com/icon.webp",
+      "@context": "https://schema.org",
+      "@type": "NGO",
+      "name": "PAHAL NGO",
+      "url": "https://your-pahal-domain.com/", /* CHANGE */
+      "logo": "https://your-pahal-domain.com/icon.webp", /* CHANGE */
       "description": "PAHAL is a voluntary youth organization in Jalandhar dedicated to holistic personality development, community service, and fostering positive change in health, education, environment, and communication.",
-      "address": {"@type": "PostalAddress", "streetAddress": "36 New Vivekanand Park, Maqsudan", "addressLocality": "Jalandhar", "addressRegion": "Punjab", "postalCode": "144008", "addressCountry": "IN" },
-      "contactPoint": [ /* ... contact points ... */ ], "sameAs": [ /* ... social links ... */ ]
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "36 New Vivekanand Park, Maqsudan",
+        "addressLocality": "Jalandhar",
+        "addressRegion": "Punjab",
+        "postalCode": "144008",
+        "addressCountry": "IN"
+      },
+      "contactPoint": [
+        {
+          "@type": "ContactPoint",
+          "telephone": "+911812672784",
+          "contactType": "general inquiry"
+        },
+         {
+          "@type": "ContactPoint",
+          "telephone": "+919855614230",
+          "contactType": "general inquiry"
+        },
+        {
+          "@type": "ContactPoint",
+          "email": "engage@pahal-ngo.org",
+          "contactType": "customer service"
+        }
+      ],
+      "sameAs": [
+        "...", /* Add social media links here */
+        "...",
+        "..."
+      ]
     }
     </script>
 </head>
@@ -696,7 +962,10 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
              <p class="text-xs text-theme-text-muted italic ml-11 -mt-1.5 hidden sm:block">An Endeavour for a Better Tomorrow</p>
         </div>
         <button id="mobile-menu-toggle" aria-label="Toggle Menu" aria-expanded="false" aria-controls="navbar" class="menu-toggle lg:hidden p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary rounded">
-            <span class="sr-only">Open menu</span> <span></span> <span></span> <span></span>
+            <span class="sr-only">Open menu</span>
+            <span></span>
+            <span></span>
+            <span></span>
         </button>
         <nav id="navbar" aria-label="Main Navigation" class="navbar-container"> <!-- Use class for JS targeting -->
             <ul class="flex flex-col lg:flex-row lg:items-center lg:space-x-5 xl:space-x-6 py-4 lg:py-0 px-4 lg:px-0">
@@ -754,7 +1023,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                  <div class="md:col-span-3 profile-text">
                     <h3 class="text-2xl mb-4 !text-theme-text-heading">Who We Are</h3>
                     <p class="mb-6 text-theme-text-muted text-lg">'PAHAL' (Initiative) stands as a testament to collective action... driven by a singular vision: to catalyze perceptible, positive transformation within our social fabric.</p>
-                    <blockquote><p>"PAHAL is an endeavour for a Better Tomorrow"</p></blockquote>
+                    <blockquote><p>"PAHAL is an endeavour for a Better Tomorrow"</p><cite>- PAHAL NGO</cite></blockquote>
                     <h3 class="text-2xl mb-4 mt-10 !text-theme-text-heading">Our Core Vision</h3>
                     <p class="text-theme-text-muted text-lg">We aim to cultivate <strong class="text-theme-primary font-medium">Holistic Personality Development</strong>... thereby building a more compassionate and equitable world.</p>
                  </div>
@@ -814,10 +1083,10 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     </section>
 
     <!-- How to Join / Get Involved Section -->
-     <section id="volunteer-section" class="section-padding animated-gradient-secondary text-white relative">
+     <section id="volunteer-section" class="section-padding text-white relative animated-gradient-accent">
         <div class="absolute inset-0 bg-black/30 mix-blend-multiply z-0"></div> <!-- Darkening Overlay -->
         <div class="container mx-auto relative z-10">
-             <h2 class="section-title !text-white section-title-underline after:!bg-theme-accent">Join the PAHAL Movement</h2>
+             <h2 class="section-title !text-white section-title-underline after:!bg-white/70">Join the PAHAL Movement</h2>
             <div class="grid lg:grid-cols-2 gap-12 items-center mt-16">
                 <!-- Info Text -->
                 <div class="text-center lg:text-left animate-on-scroll fade-in-left">
@@ -835,18 +1104,57 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                      <?= get_form_status_html('volunteer_form') ?>
                     <form id="volunteer-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#volunteer-section" method="POST" class="space-y-5">
                         <!-- Hidden Fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>"><input type="hidden" name="form_id" value="volunteer_form"><div class="honeypot-field" aria-hidden="true"><label for="website_url_volunteer">Keep Blank</label><input type="text" id="website_url_volunteer" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off"></div>
-                        <!-- Form Fields (using updated classes) -->
-                        <div><label for="volunteer_name" class="form-label !text-gray-200 required">Full Name</label><input type="text" id="volunteer_name" name="volunteer_name" required value="<?= $volunteer_form_name_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_name') ?>" placeholder="Your Name" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_name') ?>><?= get_field_error_html('volunteer_form', 'volunteer_name') ?></div>
-                        <div class="grid md:grid-cols-2 gap-5">
-                            <div><label for="volunteer_email" class="form-label !text-gray-200">Email</label><input type="email" id="volunteer_email" name="volunteer_email" value="<?= $volunteer_form_email_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_email') ?>" placeholder="your.email@example.com" <?= get_aria_describedby('volunteer_form', 'volunteer_email') ?>><?= get_field_error_html('volunteer_form', 'volunteer_email') ?></div>
-                            <div><label for="volunteer_phone" class="form-label !text-gray-200">Phone</label><input type="tel" id="volunteer_phone" name="volunteer_phone" value="<?= $volunteer_form_phone_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_phone') ?>" placeholder="Your Phone" <?= get_aria_describedby('volunteer_form', 'volunteer_phone') ?>><?= get_field_error_html('volunteer_form', 'volunteer_phone') ?></div>
+                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                        <input type="hidden" name="form_id" value="volunteer_form">
+                        <div class="honeypot-field" aria-hidden="true">
+                            <label for="website_url_volunteer">Keep Blank</label>
+                            <input type="text" id="website_url_volunteer" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
                         </div>
-                        <p class="text-xs text-gray-300 -mt-3" id="volunteer_contact_note">Provide Email or Phone.</p>
-                        <div><label for="volunteer_area" class="form-label !text-gray-200 required">Area of Interest</label><select id="volunteer_area" name="volunteer_area" required class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_area') ?>" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_area') ?>><option value="" disabled <?= empty($volunteer_form_area_value) ? 'selected' : ''?>>-- Select --</option><option value="Health" <?= $volunteer_form_area_value == 'Health' ? 'selected' : ''?>>Health</option><!-- Other options --><option value="Other" <?= $volunteer_form_area_value == 'Other' ? 'selected' : ''?>>Other</option></select><?= get_field_error_html('volunteer_form', 'volunteer_area') ?></div>
-                        <div><label for="volunteer_availability" class="form-label !text-gray-200 required">Availability</label><input type="text" id="volunteer_availability" name="volunteer_availability" required value="<?= $volunteer_form_availability_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_availability') ?>" placeholder="e.g., Weekends, Evenings" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_availability') ?>><?= get_field_error_html('volunteer_form', 'volunteer_availability') ?></div>
-                        <div><label for="volunteer_message" class="form-label !text-gray-200">Message (Optional)</label><textarea id="volunteer_message" name="volunteer_message" rows="3" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_message') ?>" placeholder="Your motivation or skills..." <?= get_aria_describedby('volunteer_form', 'volunteer_message') ?>><?= $volunteer_form_message_value ?></textarea><?= get_field_error_html('volunteer_form', 'volunteer_message') ?></div>
-                        <button type="submit" class="btn btn-accent w-full sm:w-auto"><span class="spinner hidden mr-2"></span><span class="button-text flex items-center"><i class="fas fa-paper-plane"></i>Submit Interest</span></button>
+                        <!-- Form Fields (using updated classes) -->
+                        <div>
+                            <label for="volunteer_name" class="form-label !text-gray-200 required">Full Name</label>
+                            <input type="text" id="volunteer_name" name="volunteer_name" required value="<?= $volunteer_form_name_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_name') ?>" placeholder="Your Name" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_name') ?>>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_name') ?>
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-5">
+                            <div>
+                                <label for="volunteer_email" class="form-label !text-gray-200">Email</label>
+                                <input type="email" id="volunteer_email" name="volunteer_email" value="<?= $volunteer_form_email_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_email') ?>" placeholder="your.email@example.com" <?= get_aria_describedby('volunteer_form', 'volunteer_email') ?>>
+                                <?= get_field_error_html('volunteer_form', 'volunteer_email') ?>
+                            </div>
+                            <div>
+                                <label for="volunteer_phone" class="form-label !text-gray-200">Phone</label>
+                                <input type="tel" id="volunteer_phone" name="volunteer_phone" value="<?= $volunteer_form_phone_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_phone') ?>" placeholder="Your Phone" <?= get_aria_describedby('volunteer_form', 'volunteer_phone') ?>>
+                                <?= get_field_error_html('volunteer_form', 'volunteer_phone') ?>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-300 -mt-3" id="volunteer_contact_note">Provide Email or Phone (at least one is required).</p>
+                         <div>
+                            <label for="volunteer_area" class="form-label !text-gray-200 required">Area of Interest</label>
+                            <select id="volunteer_area" name="volunteer_area" required class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_area') ?>" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_area') ?>>
+                                <option value="" disabled <?= empty($volunteer_form_area_value) ? 'selected' : ''?>>-- Select --</option>
+                                <option value="Health" <?= $volunteer_form_area_value == 'Health' ? 'selected' : ''?>>Health</option>
+                                <option value="Education" <?= $volunteer_form_area_value == 'Education' ? 'selected' : ''?>>Education</option>
+                                <option value="Environment" <?= $volunteer_form_area_value == 'Environment' ? 'selected' : ''?>>Environment</option>
+                                <option value="Communication Skills" <?= $volunteer_form_area_value == 'Communication Skills' ? 'selected' : ''?>>Communication Skills</option>
+                                <option value="Other" <?= $volunteer_form_area_value == 'Other' ? 'selected' : ''?>>Other</option>
+                            </select>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_area') ?>
+                        </div>
+                        <div>
+                            <label for="volunteer_availability" class="form-label !text-gray-200 required">Availability</label>
+                            <input type="text" id="volunteer_availability" name="volunteer_availability" required value="<?= $volunteer_form_availability_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_availability') ?>" placeholder="e.g., Weekends, Evenings" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_availability') ?>>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_availability') ?>
+                        </div>
+                        <div>
+                            <label for="volunteer_message" class="form-label !text-gray-200">Message (Optional)</label>
+                            <textarea id="volunteer_message" name="volunteer_message" rows="3" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_message') ?>" placeholder="Your motivation or skills..." <?= get_aria_describedby('volunteer_form', 'volunteer_message') ?>><?= $volunteer_form_message_value ?></textarea>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_message') ?>
+                        </div>
+                        <button type="submit" class="btn btn-accent w-full sm:w-auto">
+                            <span class="spinner hidden mr-2"></span>
+                            <span class="button-text flex items-center"><i class="fas fa-paper-plane"></i>Submit Interest</span>
+                        </button>
                     </form>
                  </div>
             </div>
@@ -863,7 +1171,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                     <?php foreach ($news_items as $index => $item): ?>
                     <div class="news-card group animate-on-scroll fade-in-up delay-<?= ($index * 100) ?> card-hover">
                         <a href="<?= htmlspecialchars($item['link']) ?>" class="block aspect-[16/10] overflow-hidden rounded-t-xl" title="Read more">
-                             <img src="<?= htmlspecialchars($item['image']) ?>" alt="..." loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
+                             <img src="<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['title']) ?>" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
                         </a>
                         <div class="news-content">
                              <span class="date"><i class="far fa-calendar-alt mr-1 opacity-70"></i><?= date('M j, Y', strtotime($item['date'])) ?></span>
@@ -879,7 +1187,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                      <p class="text-center text-theme-text-muted md:col-span-2 lg:col-span-3">No recent news.</p>
                  <?php endif; ?>
             </div>
-            <div class="text-center mt-12"><a href="/news-archive.php" class="btn btn-secondary"><i class="far fa-newspaper"></i>View News Archive</a></div>
+            <div class="text-center mt-12"><a href="/news-archive.php" class="btn btn-secondary"><i class="far fa-newspaper"></i>View News Archive</a></div> <!-- CHANGE LINK IF NEEDED -->
         </div>
     </section>
 
@@ -908,12 +1216,16 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
             <h2 class="section-title section-title-underline">Our Valued Associates & Partners</h2>
              <p class="text-center max-w-3xl mx-auto text-lg text-theme-text-muted mb-16">Collaboration amplifies impact. We value the support of these esteemed organizations.</p>
              <div class="flex flex-wrap justify-center items-center gap-x-10 md:gap-x-16 gap-y-10"> <!-- Increased gap -->
-                <?php foreach ($associates as $index => $associate): ?>
-                 <div class="associate-logo text-center group transform transition duration-300 hover:scale-110 animate-on-scroll fade-in-up delay-<?= ($index * 50) ?>">
-                    <img src="<?= htmlspecialchars($associate['img']) ?>" alt="<?= htmlspecialchars($associate['name']) ?> Logo" class="max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100">
-                    <p class="text-xs font-medium text-theme-text-muted group-hover:text-theme-primary transition-colors"><?= htmlspecialchars($associate['name']) ?></p>
-                 </div>
-                 <?php endforeach; ?>
+                <?php if (!empty($associates)): ?>
+                    <?php foreach ($associates as $index => $associate): ?>
+                     <div class="associate-logo text-center group transform transition duration-300 hover:scale-110 animate-on-scroll fade-in-up delay-<?= ($index * 50) ?>">
+                        <img src="<?= htmlspecialchars($associate['img']) ?>" alt="<?= htmlspecialchars($associate['name']) ?> Logo" class="max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100">
+                        <p class="text-xs font-medium text-theme-text-muted group-hover:text-theme-primary transition-colors"><?= htmlspecialchars($associate['name']) ?></p>
+                     </div>
+                     <?php endforeach; ?>
+                 <?php else: ?>
+                     <p class="text-center text-theme-text-muted md:col-span-full">Partner logos coming soon.</p>
+                 <?php endif; ?>
             </div>
         </div>
     </section>
@@ -947,9 +1259,27 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                         <div class="contact-info-item"><i class="fas fa-phone-alt"></i><div><span>Phone Lines:</span> <a href="tel:+911812672784">181-267-2784</a><br><a href="tel:+919855614230">98556-14230</a></div></div>
                         <div class="contact-info-item"><i class="fas fa-envelope"></i><div><span>Email Us:</span> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></div></div>
                      </address>
-                    <div class="mb-10 pt-8 border-t border-theme-border/50"><h4 class="text-lg font-semibold text-theme-secondary mb-4">Follow Our Journey</h4><div class="flex space-x-5 social-icons"><!-- Social Icons --></div></div>
-                     <div class="mb-10 pt-8 border-t border-gray-200"><h4 class="text-lg font-semibold text-neutral mb-4">Visit Us</h4><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3406.124022090013!2d75.5963185752068!3d31.339546756899223!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5b7f02a86379%3A0x4c61457c43d15b97!2s36%2C%20New%20Vivekanand%20Park%2C%20Maqsudan%2C%20Jalandhar%2C%20Punjab%20144008!5e0!3m2!1sen!2sin!4v1700223266482!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-gray-200"></iframe></div> 
-                     <div class="registration-info"><h4 class="text-sm font-semibold text-theme-primary dark:text-theme-primary mb-2">Registration</h4><!-- Reg Details --></div>
+                     <!-- Social Icons Placeholder -->
+                    <div class="mb-10 pt-8 border-t border-theme-border/50">
+                        <h4 class="text-lg font-semibold text-theme-secondary mb-4">Follow Our Journey</h4>
+                        <div class="flex justify-center md:justify-start space-x-5 social-icons">
+                             <!-- Social Icons Here -->
+                            <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram" class="footer-social-icon hover:text-[#E1306C]"><i class="fab fa-instagram"></i></a>
+                            <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook" class="footer-social-icon hover:text-[#1877F2]"><i class="fab fa-facebook-f"></i></a>
+                            <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Twitter" title="Twitter" class="footer-social-icon hover:text-[#1DA1F2]"><i class="fab fa-twitter"></i></a>
+                            <a href="..." target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn" class="footer-social-icon hover:text-[#0A66C2]"><i class="fab fa-linkedin-in"></i></a>
+                         </div>
+                     </div>
+                     <!-- Map Placeholder -->
+                     <div class="mb-10 pt-8 border-t border-theme-border/50">
+                         <h4 class="text-lg font-semibold text-theme-secondary mb-4">Visit Us</h4>
+                         <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3406.124022090013!2d75.5963185752068!3d31.339546756899223!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5b7f02a86379%3A0x4c61457c43d15b97!2s36%2C%20New%20Vivekanand%20Park%2C%20Maqsudan%2C%20Jalandhar%2C%20Punjab%20144008!5e0!3m2!1sen!2sin!4v1700223266482!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-theme-border/50"></iframe>
+                     </div>
+                     <!-- Registration Info Placeholder -->
+                     <div class="registration-info">
+                         <h4 class="text-sm font-semibold text-theme-primary dark:text-theme-primary mb-2">Registration Details</h4>
+                         <p>Registered under the Societies Registration Act, 1860. <br>Registration No: 737 of 2007-08. <br>Approved under Section 12A & 80G of the Income Tax Act, 1961.</p>
+                     </div>
                  </div>
                 <!-- Contact Form -->
                 <div class="lg:col-span-3 panel !bg-theme-surface dark:!bg-theme-surface !border-theme-border/50 animate-on-scroll fade-in-right delay-100">
@@ -957,12 +1287,32 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                     <?= get_form_status_html('contact_form') ?>
                     <form id="contact-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#contact" method="POST" class="space-y-6">
                         <!-- Hidden fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>"><input type="hidden" name="form_id" value="contact_form"><div class="honeypot-field">...</div>
+                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                        <input type="hidden" name="form_id" value="contact_form">
+                        <div class="honeypot-field" aria-hidden="true">
+                             <label for="website_url_contact">Keep Blank</label>
+                             <input type="text" id="website_url_contact" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
+                         </div>
                         <!-- Form Fields -->
-                        <div><label for="contact_name" class="form-label required">Name</label><input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" <?= get_aria_describedby('contact_form', 'name') ?>><?= get_field_error_html('contact_form', 'name') ?></div>
-                        <div><label for="contact_email" class="form-label required">Email</label><input type="email" id="contact_email" name="email" required value="<?= $contact_form_email_value ?>" class="<?= get_field_error_class('contact_form', 'email') ?>" placeholder="e.g., jane.doe@example.com" <?= get_aria_describedby('contact_form', 'email') ?>><?= get_field_error_html('contact_form', 'email') ?></div>
-                        <div><label for="contact_message" class="form-label required">Message</label><textarea id="contact_message" name="message" rows="5" required class="<?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your thoughts..." <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea><?= get_field_error_html('contact_form', 'message') ?></div>
-                        <button type="submit" class="btn btn-primary w-full sm:w-auto" id="contact-submit-button"><span class="button-text flex items-center"><i class="fas fa-paper-plane"></i>Send Message</span><span class="spinner hidden ml-2"></span></button>
+                        <div>
+                            <label for="contact_name" class="form-label required">Name</label>
+                            <input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" aria-required="true" <?= get_aria_describedby('contact_form', 'name') ?>>
+                            <?= get_field_error_html('contact_form', 'name') ?>
+                        </div>
+                        <div>
+                            <label for="contact_email" class="form-label required">Email</label>
+                            <input type="email" id="contact_email" name="email" required value="<?= $contact_form_email_value ?>" class="form-input <?= get_field_error_class('contact_form', 'email') ?>" placeholder="e.g., jane.doe@example.com" aria-required="true" <?= get_aria_describedby('contact_form', 'email') ?>>
+                            <?= get_field_error_html('contact_form', 'email') ?>
+                        </div>
+                        <div>
+                            <label for="contact_message" class="form-label required">Message</label>
+                            <textarea id="contact_message" name="message" rows="5" required class="form-input <?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your thoughts..." aria-required="true" <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea>
+                            <?= get_field_error_html('contact_form', 'message') ?>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-full sm:w-auto" id="contact-submit-button">
+                            <span class="button-text flex items-center"><i class="fas fa-paper-plane"></i>Send Message</span>
+                            <span class="spinner hidden ml-2"></span>
+                        </button>
                     </form>
                  </div>
             </div>
@@ -1018,7 +1368,7 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
                      <li><a href="#volunteer-section"><i class="fas fa-chevron-right"></i>Volunteer</a></li>
                      <li><a href="#donate-section"><i class="fas fa-chevron-right"></i>Donate</a></li>
                      <li><a href="#contact"><i class="fas fa-chevron-right"></i>Contact</a></li>
-                     <li><a href="/privacy-policy.php"><i class="fas fa-chevron-right"></i>Privacy</a></li>
+                     <li><a href="/privacy-policy.php">Privacy</a></li> <!-- CHANGE LINK IF NEEDED -->
                  </ul>
              </div>
              <!-- Footer Contact -->
@@ -1047,91 +1397,413 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
    <i class="fas fa-arrow-up text-lg"></i> <!-- Slightly larger icon -->
 </button>
 
-<!-- Simple Lightbox JS -->
+<!-- Simple Lightbox JS (Place before main script) -->
 <script src="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.js"></script>
 
 <!-- Main JavaScript -->
 <script>
-    // --- Keep the existing JS from the previous enhancement ---
-    // This includes: Theme Toggle, Mobile Menu, Active Link Highlighting,
-    // Smooth Scroll, Back to Top, Form Submission Spinner (basic),
-    // Gallery Lightbox Init, Animation on Scroll (Intersection Observer), Modal Handling.
-    // No major changes needed here unless specific new interactions were added.
     document.addEventListener('DOMContentLoaded', () => {
-        // Elements
+        console.log("PAHAL Main Page JS Loaded");
+
+        // --- Theme Toggle ---
         const themeToggleBtn = document.getElementById('theme-toggle');
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const htmlElement = document.documentElement;
-        const menuToggle = document.getElementById('mobile-menu-toggle');
-        const navbar = document.getElementById('navbar');
-        const navLinks = document.querySelectorAll('#navbar a.nav-link[href^="#"]');
-        const header = document.getElementById('main-header');
-        const backToTopButton = document.getElementById('back-to-top');
-        const sections = document.querySelectorAll('main section[id]');
-        let headerHeight = header?.offsetHeight ?? 70;
 
-        // --- Theme Toggle ---
-        const applyTheme = (theme) => { /* ... keep existing ... */ };
+        const applyTheme = (theme) => {
+            if (theme === 'dark') {
+                htmlElement.classList.add('dark');
+                darkIcon?.classList.add('hidden');
+                lightIcon?.classList.remove('hidden');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                htmlElement.classList.remove('dark');
+                darkIcon?.classList.remove('hidden');
+                lightIcon?.classList.add('hidden');
+                localStorage.setItem('theme', 'light');
+            }
+        };
+
+        // Check saved theme or system preference
         const storedTheme = localStorage.getItem('theme');
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         const initialTheme = storedTheme ? storedTheme : (prefersDark ? 'dark' : 'light');
-        applyTheme(initialTheme);
-        themeToggleBtn?.addEventListener('click', () => { applyTheme(htmlElement.classList.contains('dark') ? 'light' : 'dark'); });
+        applyTheme(initialTheme); // Apply theme on load
 
-        // --- Header & Layout ---
+        // Toggle theme on button click
+        themeToggleBtn?.addEventListener('click', () => {
+            applyTheme(htmlElement.classList.contains('dark') ? 'light' : 'dark');
+        });
+
+
+        // --- Header & Layout Updates on Scroll/Resize ---
+        const header = document.getElementById('main-header');
+        const backToTopButton = document.getElementById('back-to-top');
+        const sections = document.querySelectorAll('main section[id]'); // Get all main sections with an ID
+        let headerHeight = header?.offsetHeight ?? 70; // Default height if header not found
+
         let scrollTimeout;
-        const updateLayout = () => { /* ... keep existing ... */ };
-        updateLayout(); window.addEventListener('resize', updateLayout); window.addEventListener('scroll', () => { clearTimeout(scrollTimeout); scrollTimeout = setTimeout(updateLayout, 50); }, { passive: true });
+        const updateLayout = () => {
+            // Update header shadow on scroll
+            if (window.scrollY > 50) {
+                header?.classList.add('scrolled');
+            } else {
+                header?.classList.remove('scrolled');
+            }
+
+            // Show/hide back to top button
+            if (backToTopButton) {
+                 if (window.scrollY > window.innerHeight / 2) { // Show after scrolling down half the viewport
+                     backToTopButton.classList.add('visible');
+                 } else {
+                     backToTopButton.classList.remove('visible');
+                 }
+            }
+
+             // Update header height variable (less critical with static 70px, but good practice)
+             headerHeight = header?.offsetHeight ?? 70;
+
+             // Update active navigation link based on scroll position
+             setActiveLink(); // Call active link update here too
+        };
+
+        // Use passive scroll listener for performance
+        window.addEventListener('scroll', () => {
+             clearTimeout(scrollTimeout);
+             scrollTimeout = setTimeout(updateLayout, 50); // Debounce scroll updates
+        }, { passive: true });
+
+        window.addEventListener('resize', updateLayout); // Update on resize
+
+        // Initial layout update
+        updateLayout();
+
 
         // --- Mobile Menu ---
         let isMobileMenuOpen = false;
-        const toggleMobileMenu = (forceClose = false) => { /* ... keep existing ... */ };
+        const navbar = document.getElementById('navbar');
+
+        const toggleMobileMenu = (forceClose = false) => {
+            if (navbar && menuToggle) {
+                if (forceClose || isMobileMenuOpen) {
+                    // Close menu
+                    navbar.classList.remove('open');
+                    menuToggle.classList.remove('open');
+                    menuToggle.setAttribute('aria-expanded', 'false');
+                    isMobileMenuOpen = false;
+                     // Re-enable scroll if it was disabled
+                    document.body.style.overflowY = '';
+                } else {
+                    // Open menu
+                    navbar.classList.add('open');
+                    menuToggle.classList.add('open');
+                    menuToggle.setAttribute('aria-expanded', 'true');
+                    isMobileMenuOpen = true;
+                     // Disable scroll when menu is open (optional, but prevents background scrolling)
+                    document.body.style.overflowY = 'hidden';
+                }
+            }
+        };
+
+        // Toggle menu on button click
         menuToggle?.addEventListener('click', () => toggleMobileMenu());
 
-        // --- Active Link ---
-        const setActiveLink = () => { /* ... keep existing ... */ };
-        let activeLinkTimeout; window.addEventListener('scroll', () => { clearTimeout(activeLinkTimeout); activeLinkTimeout = setTimeout(setActiveLink, 100); }, { passive: true }); setActiveLink();
-
-        // --- Smooth Scroll & Menu Close ---
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => { anchor.addEventListener('click', function (e) { /* ... keep existing ... */ }); });
-
-        // --- Back to Top ---
-        backToTopButton?.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
-
-        // --- Form Submission & Messages ---
-        document.querySelectorAll('form[id$="-form-tag"]').forEach(form => {
-             const submitButton = form.querySelector('button[type="submit"]');
-             const spinner = submitButton?.querySelector('.spinner');
-             const buttonTextSpan = submitButton?.querySelector('.button-text');
-             form.addEventListener('submit', (e) => {
-                 if (submitButton) { submitButton.disabled = true; buttonTextSpan?.classList.add('opacity-70'); spinner?.classList.remove('hidden'); }
+        // Close menu when a nav link is clicked (in mobile view)
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                 // Only close if mobile menu is open
+                 if(isMobileMenuOpen) {
+                     toggleMobileMenu(true); // Force close
+                 }
              });
-             const formId = form.id.replace('-tag', '');
-             const statusMessage = document.querySelector(`[data-form-message-id="${formId}"]`);
-             if(statusMessage) { setTimeout(() => { statusMessage.style.opacity = '1'; statusMessage.style.transform = 'translateY(0) scale(1)'; }, 50); }
         });
 
-        // --- Gallery Lightbox ---
-        try { if (typeof SimpleLightbox !== 'undefined') { new SimpleLightbox('.gallery a', { captionDelay: 250, fadeSpeed: 200, animationSpeed: 200 }); } } catch(e) { console.error("Lightbox init failed:", e); }
+         // Close mobile menu on window resize above mobile breakpoint (optional but good UX)
+         window.addEventListener('resize', () => {
+             if (window.innerWidth >= 1024 && isMobileMenuOpen) { // 1024px is Tailwind's 'lg' breakpoint
+                 toggleMobileMenu(true); // Force close if open and resize happens
+             }
+         });
 
-        // --- Animation on Scroll ---
-        const observerOptions = { root: null, rootMargin: '0px 0px -10% 0px', threshold: 0.1 };
-        const intersectionCallback = (entries, observer) => { /* ... keep existing ... */ };
-        if ('IntersectionObserver' in window) { const observer = new IntersectionObserver(intersectionCallback, observerOptions); document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el)); }
-        else { document.querySelectorAll('.animate-on-scroll').forEach(el => el.classList.add('is-visible')); }
 
-        // --- Modal Handling ---
-        const modalTriggers = document.querySelectorAll('[data-modal-target]');
-        const modalClosers = document.querySelectorAll('[data-modal-close]');
-        const modals = document.querySelectorAll('.modal-container');
-        const closeModal = (modal) => { /* ... keep existing ... */ };
-        modalTriggers.forEach(button => { button.addEventListener('click', () => { /* ... keep existing ... */ }); });
-        modalClosers.forEach(button => { button.addEventListener('click', () => { /* ... keep existing ... */ }); });
-        modals.forEach(modal => { modal.addEventListener('click', (event) => { /* ... keep existing ... */ }); });
-        document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { document.querySelectorAll('.modal-container.flex').forEach(closeModal); } });
+        // --- Active Navigation Link Highlighting ---
+         const setActiveLink = () => {
+             let currentActive = '';
+             sections.forEach(section => {
+                 const sectionTop = section.offsetTop - headerHeight - 1; // Adjust for header height and a small margin
+                 const sectionBottom = sectionTop + section.offsetHeight;
+                 if (window.scrollY >= sectionTop && window.scrollY < sectionBottom) {
+                     currentActive = '#' + section.id;
+                 }
+             });
 
-        console.log("PAHAL Advanced UI Initialized.");
+             navLinks.forEach(link => {
+                 link.classList.remove('active');
+                 // Special handling for root URL if applicable, or 'Home' link for the #hero section
+                 const linkHref = link.getAttribute('href');
+                 if (linkHref === currentActive || (linkHref === '#hero' && currentActive === '')) {
+                     link.classList.add('active');
+                 }
+                 // Handle links to other pages (e.g., blood-donation.php, e-waste.php) - these won't match #sections
+                 // If you want these to be 'active' when you're on their respective pages,
+                 // you'd need PHP logic to add the 'active' class on page load.
+             });
+         };
+
+         let activeLinkTimeout;
+         window.addEventListener('scroll', () => {
+             clearTimeout(activeLinkTimeout);
+             activeLinkTimeout = setTimeout(setActiveLink, 100); // Debounce
+         }, { passive: true });
+
+         // Set active link on initial load
+         setActiveLink();
+
+
+        // --- Smooth Scroll for Anchor Links ---
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            // Check if the anchor is a nav link and should be handled by the click listener above
+            // Or handle all local anchor links here
+             if (!anchor.classList.contains('nav-link')) { // Prevent double handling for nav links
+                 anchor.addEventListener('click', function (e) {
+                     e.preventDefault();
+                     const targetId = this.getAttribute('href');
+                     const targetElement = document.querySelector(targetId);
+
+                     if (targetElement) {
+                        // Calculate offset for fixed header
+                        const elementPosition = targetElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - headerHeight - 20; // Add a small margin
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Update URL hash after scroll completes (optional)
+                         // history.pushState(null, null, targetId); // Might interfere with back button
+                     }
+                 });
+             }
+        });
+
+         // --- Handle scrolling to section after page load (e.g., after form submission redirect) ---
+         // Check if there's a hash in the URL on page load
+        const hash = window.location.hash;
+        if (hash) {
+            // Use a small delay to allow the page to render and header height to be calculated
+            setTimeout(() => {
+                try {
+                     // Decode hash to handle special characters like spaces in IDs
+                    const targetElement = document.querySelector(decodeURIComponent(hash));
+                    if (targetElement) {
+                        const elementPosition = targetElement.getBoundingClientRect().top;
+                        // Adjust scroll position by header height and an extra margin
+                        const offsetPosition = elementPosition + window.pageYOffset - headerHeight - 20; // Adjust by header height and add a small margin
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+                         // Focus the target element for accessibility (optional)
+                         targetElement.focus({ preventScroll: true });
+
+                    } else {
+                        console.warn("Target element for hash not found:", hash);
+                    }
+                } catch (e) {
+                     console.error("Error scrolling to hash:", hash, e);
+                }
+            }, 100); // Delay execution slightly
+        }
+
+
+        // --- Back to Top Button Functionality ---
+        // Visibility logic is in updateLayout() scroll handler
+        backToTopButton?.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+
+        // --- Form Submission Spinner & Message Animation ---
+        // Select forms by the added '-tag' suffix to avoid conflicts
+        const forms = document.querySelectorAll('form[id$="-form-tag"]');
+
+         forms.forEach(form => {
+             const submitButton = form.querySelector('button[type="submit"]');
+             // Find the spinner and text span within the submit button
+             const spinner = submitButton?.querySelector('.spinner');
+             const buttonTextSpan = submitButton?.querySelector('.button-text');
+
+             // Add submit event listener
+             form.addEventListener('submit', (e) => {
+                 // Basic HTML5 validity check before showing spinner
+                 if (form.checkValidity()) {
+                    // Show spinner, hide text, disable button
+                    if (submitButton) submitButton.disabled = true;
+                    if (buttonTextSpan) buttonTextSpan.classList.add('opacity-70'); // Or hidden/invisible
+                    if (spinner) spinner.classList.remove('hidden'); // Or add appropriate display class
+                 } else {
+                     // If HTML5 validation fails client-side, the form won't submit,
+                     // and the button remains enabled. No action needed here other than default browser validation UI.
+                     console.log("Client-side validation failed, submission prevented.");
+                 }
+             });
+
+             // --- Form Message Animation ---
+             // The form status HTML is rendered by PHP with opacity: 0 and translate-y-2 scale-95
+             // We need JS to add the animation classes *after* the element is in the DOM following a redirect
+             const formId = form.id.replace('-tag', ''); // Get the original form ID
+             const statusMessage = document.querySelector(`[data-form-message-id="${formId}"]`);
+
+             if(statusMessage) {
+                 // Add the class that triggers the animation
+                 // Use a tiny timeout to ensure the browser registers the initial state before animating
+                 setTimeout(() => {
+                     statusMessage.style.opacity = '1';
+                     statusMessage.style.transform = 'translateY(0) scale(1)';
+                      // Or if using tailwind animation class: statusMessage.classList.add('animate-form-message-in');
+                 }, 50); // Small delay for rendering
+             }
+         });
+
+
+        // --- Gallery Lightbox Initialization ---
+        try {
+             // Check if SimpleLightbox library is available (loaded via CDN)
+             if (typeof SimpleLightbox !== 'undefined') {
+                const gallery = new SimpleLightbox('.gallery a', {
+                    /* Options */
+                    captionDelay: 250, // Show caption after 250ms
+                    fadeSpeed: 200,    // Fade speed for lightbox overlay
+                    animationSpeed: 200 // Animation speed for image transitions
+                    // Add more options as needed: https://simplelightbox.com/docs/#options
+                });
+
+                // Optional: Add event listeners if needed, e.g., gallery.on('show.simplelightbox', function(){ ... });
+
+             } else {
+                 console.error("SimpleLightbox library (SimpleLightbox) not found.");
+             }
+        } catch(e) {
+             console.error("Error initializing SimpleLightbox:", e);
+        }
+
+
+        // --- Animation on Scroll using Intersection Observer ---
+        // Check if IntersectionObserver is supported by the browser
+        if ('IntersectionObserver' in window) {
+            const observerOptions = {
+                root: null, // viewport
+                rootMargin: '0px 0px -10% 0px', // Start animation when 10% from bottom of viewport
+                threshold: 0.1 // Trigger when 10% of the element is visible
+            };
+
+            const intersectionCallback = (entries, observer) => {
+                entries.forEach(entry => {
+                    // If the element is visible in the viewport
+                    if (entry.isIntersecting) {
+                        // Add the 'is-visible' class to trigger the CSS animation
+                        entry.target.classList.add('is-visible');
+                        // Optionally stop observing once it's visible to save performance
+                        observer.unobserve(entry.target);
+                    }
+                     // If you want animations to reset when they leave the viewport (e.g., for elements higher up on a long page)
+                    // else {
+                    //    entry.target.classList.remove('is-visible');
+                    // }
+                });
+            };
+
+            // Create the observer
+            const observer = new IntersectionObserver(intersectionCallback, observerOptions);
+
+            // Select all elements with the 'animate-on-scroll' class and observe them
+            document.querySelectorAll('.animate-on-scroll').forEach(el => {
+                observer.observe(el);
+            });
+
+        } else {
+            // Fallback for browsers that do not support Intersection Observer
+            // Just show all elements immediately
+            console.warn("IntersectionObserver not supported. Falling back to showing all animated elements.");
+            document.querySelectorAll('.animate-on-scroll').forEach(el => {
+                el.classList.add('is-visible');
+            });
+        }
+
+
+         // --- Modal Handling (Bank Details) ---
+         const modalTriggers = document.querySelectorAll('[data-modal-target]');
+         const modalClosers = document.querySelectorAll('[data-modal-close]');
+         const modals = document.querySelectorAll('.modal-container'); // Select all modal containers
+
+         // Function to open a modal
+         const openModal = (modalId) => {
+             const modal = document.getElementById(modalId);
+             if (modal) {
+                 modal.classList.add('flex'); // Use flex to display modal
+                 modal.classList.remove('hidden'); // Hide utility class is removed
+                 document.body.style.overflowY = 'hidden'; // Prevent scrolling background
+                 // Optional: Focus the first interactive element inside the modal for accessibility
+                 modal.querySelector('button, a, input, select, textarea')?.focus();
+             }
+         };
+
+         // Function to close a modal
+         const closeModal = (modal) => {
+              if (modal) {
+                modal.classList.add('hidden'); // Use hidden to hide modal
+                modal.classList.remove('flex'); // Remove flex display
+                document.body.style.overflowY = ''; // Restore background scrolling
+                 // Optional: Return focus to the element that triggered the modal (requires storing it when modal opens)
+             }
+         };
+
+         // Add event listeners to buttons that trigger modals
+         modalTriggers.forEach(button => {
+             button.addEventListener('click', () => {
+                 const targetModalId = button.getAttribute('data-modal-target');
+                 if (targetModalId) {
+                     openModal(targetModalId);
+                 }
+             });
+         });
+
+         // Add event listeners to buttons inside modals that close them
+         modalClosers.forEach(button => {
+             button.addEventListener('click', () => {
+                 // Find the parent modal container
+                 const modal = button.closest('.modal-container');
+                 if (modal) {
+                     closeModal(modal);
+                 }
+             });
+         });
+
+         // Add event listener to close modal when clicking outside the modal-box
+         modals.forEach(modal => {
+             modal.addEventListener('click', (event) => {
+                 // Check if the click target is the modal container itself, not its children
+                 if (event.target === modal) {
+                     closeModal(modal);
+                 }
+             });
+         });
+
+         // Add event listener to close modal on Escape key press
+         document.addEventListener('keydown', (event) => {
+             if (event.key === 'Escape') {
+                 // Find any currently open modal and close it
+                 document.querySelectorAll('.modal-container.flex').forEach(openModal => {
+                     closeModal(openModal);
+                 });
+             }
+         });
+
+
+        console.log("PAHAL Main Page JS Initialized.");
     });
 </script>
 
