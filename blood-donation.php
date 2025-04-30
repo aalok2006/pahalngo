@@ -1177,7 +1177,6 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
                          <div class="pt-5 text-center"> <!-- E-Waste button alignment -->
                              <!-- Button class using E-Waste definitions -->
                              <button type="submit" class="btn btn-secondary w-full sm:w-auto">
-                                 <span class="spinner hidden mr-2"></span> 
                                  <span class="button-text flex items-center justify-center"><i class="fas fa-check-circle mr-2"></i>Register Now</span>
                              </button>
                          </div>
@@ -1270,7 +1269,6 @@ $red_color = '#DC2626'; // Red 600 for errors/dangers
                          <div class="pt-5 text-center"> <!-- E-Waste button alignment -->
                              <!-- Button class using E-Waste definitions -->
                              <button type="submit" class="btn btn-accent w-full sm:w-auto">
-                                 <span class="spinner hidden mr-2"></span> 
                                  <span class="button-text flex items-center justify-center"><i class="fas fa-paper-plane mr-2"></i>Submit Request</span>
                              </button>
                          </div>
