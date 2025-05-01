@@ -1,17 +1,15 @@
 <?php
 // ========================================================================
-// PAHAL NGO Website - Main Page & Contact Form Processor
-// Version: 3.5 (Advanced UI Animations & Visuals)
-// Features: Animated Gradients, Enhanced Hovers, Micro-interactions
-// Backend: PHP mail(), CSRF, Honeypot, Logging
+// PAHAL NGO Website - Main Page & Forms Processor
+// Version: 4.2 (Simple CSS UI Refactor - No Tailwind)
+// Features: Combined Functionality, Simple CSS UI, DB Integration
+// Backend: PHP mail(), CSRF, Honeypot, Logging, PDO Database
 // ========================================================================
 
-// Start session for CSRF token
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
-}
-
-// --- Configuration (Keep Existing) ---
+// --- PHP Backend Code (Keep EXACTLY the same as in the previous version) ---
+// Start session
+if (session_status() == PHP_SESSION_NONE) { session_start(); }
+// --- Configuration ---
 define('RECIPIENT_EMAIL_CONTACT', "contact@your-pahal-domain.com"); // CHANGE ME
 define('RECIPIENT_EMAIL_VOLUNTEER', "volunteer@your-pahal-domain.com"); // CHANGE ME
 define('SENDER_EMAIL_DEFAULT', 'webmaster@your-pahal-domain.com'); // CHANGE ME
@@ -23,15 +21,16 @@ $baseDir = __DIR__;
 define('LOG_FILE_CONTACT', $baseDir . '/logs/contact_submissions.log');
 define('LOG_FILE_VOLUNTEER', $baseDir . '/logs/volunteer_submissions.log');
 define('LOG_FILE_ERROR', $baseDir . '/logs/form_errors.log');
+// --- Database Configuration ---
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'pahal_ngo_db');
+define('DB_USER', 'root');
+define('DB_PASS', ''); // CHANGE ME
+define('DB_CHARSET', 'utf8mb4');
 // --- END CONFIG ---
 
-// --- Helper Functions ---
-// *** ENSURE ALL REQUIRED HELPER FUNCTIONS ARE DEFINED HERE ***
-// (log_message, generate_csrf_token, validate_csrf_token, sanitize_string,
-//  sanitize_email, validate_data, send_email, get_form_value,
-//  get_form_status_html, get_field_error_html, get_field_error_class, get_aria_describedby)
-// **** Copied/verified from previous fixed version ****
-
+// --- Helper Functions (Keep all helper functions as they were: log_message, generate_csrf_token, validate_csrf_token, sanitize_string, sanitize_email, validate_data, send_email, get_form_value, get_form_status_html, get_field_error_html, get_field_error_class, get_aria_describedby, get_db_connection) ---
+// ... (Paste all the helper functions from the previous answer here) ...
 /**
  * Logs a message to a specified file.
  */
@@ -39,134 +38,165 @@ function log_message(string $message, string $logFile): void {
     if (!ENABLE_LOGGING) return;
     $logDir = dirname($logFile);
     if (!is_dir($logDir)) {
-        if (!@mkdir($logDir, 0755, true) && !is_dir($logDir)) { error_log("Failed to create log directory: " . $logDir); error_log("Original Log Message ($logFile): " . $message); return; }
-        if (is_dir($logDir) && !file_exists($logDir . '/.htaccess')) { @file_put_contents($logDir . '/.htaccess', 'Deny from all'); }
+        if (!@mkdir($logDir, 0755, true)) {
+            error_log("Failed to create log directory: " . $logDir);
+            error_log("Original Log Message ({$logFile}): " . $message);
+            return;
+        }
+        @file_put_contents($logDir . '/.htaccess', 'Deny from all');
     }
-    $timestamp = date('Y-m-d H:i:s'); $logEntry = "[{$timestamp}] {$message}" . PHP_EOL;
-    if (@file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX) === false) { $error = error_get_last(); error_log("Failed to write log: " . $logFile . " | Error: " . ($error['message'] ?? 'Unknown')); error_log("Original Log: " . $message); }
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[{$timestamp}] {$message}\n";
+    if (@file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX) === false) {
+        $error = error_get_last();
+        error_log("Failed to write log: {$logFile} | Error: " . ($error['message'] ?? 'Unknown'));
+        error_log("Original Log: " . $message);
+    }
 }
-
 /**
  * Generates or retrieves a CSRF token.
  */
 function generate_csrf_token(): string {
-    if (empty($_SESSION[CSRF_TOKEN_NAME])) { try { $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(32)); } catch (Exception $e) { $_SESSION[CSRF_TOKEN_NAME] = md5(uniqid(mt_rand(), true)); } }
+    if (empty($_SESSION[CSRF_TOKEN_NAME])) {
+        try { $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(32)); } catch (Exception $e) { $_SESSION[CSRF_TOKEN_NAME] = md5(uniqid(mt_rand(), true)); }
+    }
     return $_SESSION[CSRF_TOKEN_NAME];
 }
-
 /**
  * Validates the submitted CSRF token.
  */
 function validate_csrf_token(?string $submittedToken): bool {
-    if (empty($submittedToken) || !isset($_SESSION[CSRF_TOKEN_NAME]) || empty($_SESSION[CSRF_TOKEN_NAME])) { return false; }
+    if ($submittedToken === null || !isset($_SESSION[CSRF_TOKEN_NAME]) || empty($_SESSION[CSRF_TOKEN_NAME])) { return false; }
     return hash_equals($_SESSION[CSRF_TOKEN_NAME], $submittedToken);
 }
-
 /**
  * Sanitize input string.
  */
-function sanitize_string(string $input): string { return htmlspecialchars(strip_tags(trim($input)), ENT_QUOTES | ENT_HTML5, 'UTF-8'); }
-
+function sanitize_string(?string $input): string {
+    if ($input === null) return '';
+    return htmlspecialchars(trim($input), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
 /**
  * Sanitize email address.
  */
-function sanitize_email(string $email): string { $clean = filter_var(trim($email), FILTER_SANITIZE_EMAIL); return filter_var($clean, FILTER_VALIDATE_EMAIL) ? $clean : ''; }
-
+function sanitize_email(?string $email): string {
+    if ($email === null) return '';
+    $clean = filter_var(trim($email), FILTER_SANITIZE_EMAIL);
+    return filter_var($clean, FILTER_VALIDATE_EMAIL) ? $clean : '';
+}
 /**
  * Validates input data based on rules.
  */
 function validate_data(array $data, array $rules): array {
-     $errors = [];
-     foreach ($rules as $field => $ruleString) {
-        $value = $data[$field] ?? null; $ruleList = explode('|', $ruleString); $fieldNameFormatted = ucfirst(str_replace('_', ' ', $field));
+    $errors = [];
+    foreach ($rules as $field => $ruleString) {
+        $value = $data[$field] ?? null;
+        $ruleList = explode('|', $ruleString);
+        $fieldNameFormatted = ucfirst(str_replace('_', ' ', $field));
         foreach ($ruleList as $rule) {
-            $params = []; if (strpos($rule, ':') !== false) { list($rule, $paramString) = explode(':', $rule, 2); $params = explode(',', $paramString); }
+            $params = [];
+            if (strpos($rule, ':') !== false) { list($rule, $paramString) = explode(':', $rule, 2); $params = explode(',', $paramString); }
             $isValid = true; $errorMessage = '';
-            switch ($rule) { // Simplified for brevity - assume full rules exist
-                case 'required': if ($value === null || $value === '' || (is_array($value) && empty($value))) { $isValid = false; $errorMessage = "{$fieldNameFormatted} is required."; } break;
-                case 'email': if (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) { $isValid = false; $errorMessage = "Please enter a valid email."; } break;
-                case 'minLength': if ($value !== null && mb_strlen((string)$value, 'UTF-8') < (int)$params[0]) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must be at least {$params[0]} characters."; } break;
-                case 'maxLength': if ($value !== null && mb_strlen((string)$value, 'UTF-8') > (int)$params[0]) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must not exceed {$params[0]} characters."; } break;
-                case 'alpha_space': if (!empty($value) && !preg_match('/^[\p{L}\s]+$/u', $value)) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must only contain letters and spaces."; } break;
-                case 'phone': if (!empty($value) && !preg_match('/^(\+?\d{1,3}[-.\s]?)?\(?\d{3,5}\)?[-.\s]?\d{3}[-.\s]?\d{3,4}(\s*(ext|x|extension)\s*\d+)?$/', $value)) { $isValid = false; $errorMessage = "Invalid phone format."; } break;
-                case 'in': if (!empty($value) && !in_array($value, $params)) { $isValid = false; $errorMessage = "Invalid selection for {$fieldNameFormatted}."; } break;
-                case 'required_without': $otherField = $params[0] ?? null; if ($otherField && empty($value) && empty($data[$otherField] ?? null)) { $isValid = false; $errorMessage = "Either {$fieldNameFormatted} or " . ucfirst(str_replace('_',' ',$otherField)). " is required."; } break;
-                default: log_message("Unknown validation rule '{$rule}' for field '{$field}'.", LOG_FILE_ERROR); break;
+            switch ($rule) {
+                case 'required': if ($value === null || $value === '') { $isValid = false; $errorMessage = "{$fieldNameFormatted} is required."; } break;
+                case 'email': if ($value !== null && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) { $isValid = false; $errorMessage = "Please enter a valid email address for {$fieldNameFormatted}."; } break;
+                case 'minLength': if ($value !== null && mb_strlen((string)$value, 'UTF-8') < (int)($params[0] ?? 0)) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must be at least " . ($params[0] ?? 0) . " characters long."; } break;
+                case 'maxLength': if ($value !== null && mb_strlen((string)$value, 'UTF-8') > (int)($params[0] ?? 0)) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must not exceed " . ($params[0] ?? 0) . " characters."; } break;
+                case 'alpha_space': if ($value !== null && $value !== '' && !preg_match('/^[\p{L}\s]+$/u', $value)) { $isValid = false; $errorMessage = "{$fieldNameFormatted} must only contain letters and spaces."; } break;
+                case 'phone': if ($value !== null && $value !== '' && !preg_match('/^[+\d\s\-()]+$/', $value)) { $isValid = false; $errorMessage = "Please enter a valid phone number for {$fieldNameFormatted}."; } break;
+                case 'in': if ($value !== null && $value !== '' && !in_array($value, $params)) { $isValid = false; $validOptions = implode(', ', $params); $errorMessage = "{$fieldNameFormatted} must be one of the following: {$validOptions}."; } break;
+                case 'required_without': $otherField = $params[0] ?? null; if ($otherField && empty($data[$otherField] ?? null) && ($value === null || $value === '')) { $isValid = false; $otherFieldNameFormatted = ucfirst(str_replace('_', ' ', $otherField)); $errorMessage = "Either {$fieldNameFormatted} or {$otherFieldNameFormatted} is required."; } break;
+                default: log_message("Unknown validation rule '{$rule}' for field '{$field}'", LOG_FILE_ERROR);
             }
             if (!$isValid && !isset($errors[$field])) { $errors[$field] = $errorMessage; break; }
-         }
-     }
-     return $errors;
+        }
+    }
+    return $errors;
 }
-
 /**
  * Sends an email using the standard PHP mail() function.
  */
-function send_email(string $to, string $subject, string $body, string $replyToEmail, string $replyToName, string $logContext): bool {
+function send_email(string $to, string $subject, string $body, string $replyToEmail, string $replyToName, string $logContext, string $logFile): bool {
     $senderName = SENDER_NAME_DEFAULT; $senderEmail = SENDER_EMAIL_DEFAULT;
-    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { log_message("{$logContext} Invalid recipient: {$to}", LOG_FILE_ERROR); return false; }
-    if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) { log_message("{$logContext} Invalid sender in config: {$senderEmail}", LOG_FILE_ERROR); return false; }
-    $headers = "From: =?UTF-8?B?".base64_encode($senderName)."?= <{$senderEmail}>\r\n";
-    if (!empty($replyToEmail) && filter_var($replyToEmail, FILTER_VALIDATE_EMAIL)) { $replyToFormatted = $replyToName ? "=?UTF-8?B?".base64_encode($replyToName)."?= <{$replyToEmail}>" : $replyToEmail; $headers .= "Reply-To: {$replyToFormatted}\r\n"; }
-    else { $headers .= "Reply-To: {$senderName} <{$senderEmail}>\r\n"; }
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { log_message("{$logContext} Invalid recipient email: {$to}", LOG_FILE_ERROR); return false; }
+    if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) { log_message("{$logContext} Invalid sender email in config: {$senderEmail}", LOG_FILE_ERROR); return false; }
+    $headers = "From: =?UTF-8?B?" . base64_encode($senderName) . "?= <{$senderEmail}>\r\n";
+    if (!empty($replyToEmail) && filter_var($replyToEmail, FILTER_VALIDATE_EMAIL)) { $replyToFormatted = !empty($replyToName) ? "=?UTF-8?B?" . base64_encode($replyToName) . "?= <{$replyToEmail}>" : $replyToEmail; $headers .= "Reply-To: {$replyToFormatted}\r\n"; }
+    else { $headers .= "Reply-To: =?UTF-8?B?" . base64_encode($senderName) . "?= <{$senderEmail}>\r\n"; }
     $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n"; $headers .= "MIME-Version: 1.0\r\n"; $headers .= "Content-Type: text/plain; charset=UTF-8\r\n"; $headers .= "Content-Transfer-Encoding: 8bit\r\n";
-    $encodedSubject = "=?UTF-8?B?".base64_encode($subject)."?="; $wrapped_body = wordwrap($body, 70, "\r\n");
-    if (@mail($to, $encodedSubject, $wrapped_body, $headers, "-f{$senderEmail}")) { log_message("{$logContext} Email submitted via mail() to {$to}. Subject: {$subject}", LOG_FILE_CONTACT); return true; }
+    $encodedSubject = "=?UTF-8?B?" . base64_encode($subject) . "?="; $wrapped_body = wordwrap($body, 70, "\r\n");
+    if (@mail($to, $encodedSubject, $wrapped_body, $headers, "-f{$senderEmail}")) { log_message("{$logContext} Email sent successfully to {$to}. Subject: {$subject}", $logFile); return true; }
     else { $errorInfo = error_get_last(); $errorMsg = "{$logContext} Native mail() Error sending to {$to}. Subject: {$subject}. Server Error: " . ($errorInfo['message'] ?? 'Unknown mail() error.'); log_message($errorMsg, LOG_FILE_ERROR); error_log($errorMsg); return false; }
 }
-
 /**
  * Retrieves a form value safely for HTML output, using global state.
  */
 function get_form_value(string $formId, string $fieldName, string $default = ''): string {
     global $form_submissions; $value = $form_submissions[$formId][$fieldName] ?? $default;
-    if (is_array($value)) { log_message("Attempted get non-scalar value for {$formId}[{$fieldName}]", LOG_FILE_ERROR); return ''; }
+    if (is_array($value)) { log_message("Attempted get non-scalar value for form '{$formId}', field '{$fieldName}'", LOG_FILE_ERROR); return ''; }
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
-
 /**
- * Generates form status HTML (success/error) with enhanced styling & animation.
+ * Generates form status HTML (success/error) with styling.
  */
 function get_form_status_html(string $formId): string {
     global $form_messages; if (empty($form_messages[$formId])) return '';
     $message = $form_messages[$formId]; $isSuccess = ($message['type'] === 'success');
-    $baseClasses = 'form-message border px-4 py-3 rounded-lg relative mb-6 text-sm shadow-lg transition-all duration-500 transform opacity-0 translate-y-2 scale-95'; // Start smaller for animation
-    $typeClasses = $isSuccess ? 'bg-green-100 border-green-500 text-green-900 dark:bg-green-900/40 dark:border-green-600 dark:text-green-100' : 'bg-red-100 border-red-500 text-red-900 dark:bg-red-900/40 dark:border-red-600 dark:text-red-100';
-    $iconClass = $isSuccess ? 'fas fa-check-circle text-green-500 dark:text-green-400' : 'fas fa-exclamation-triangle text-red-500 dark:text-red-400';
-    $title = $isSuccess ? 'Success!' : 'Error:';
-    // data-form-message-id triggers JS animation
-    return "<div class=\"{$baseClasses} {$typeClasses}\" role=\"alert\" data-form-message-id=\"{$formId}\"><strong class=\"font-bold flex items-center text-base\"><i class=\"{$iconClass} mr-2 text-xl animate-pulse\"></i>{$title}</strong> <span class=\"block sm:inline mt-1 ml-8\">" . htmlspecialchars($message['text']) . "</span></div>";
+    $baseClasses = 'form-message'; // Use CSS class
+    $typeClass = $isSuccess ? 'form-message-success' : 'form-message-error';
+    $iconClass = $isSuccess ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle';
+    $title = $isSuccess ? 'Success!' : 'Error!';
+    return "<div data-form-message-id=\"{$formId}\" class=\"{$baseClasses} {$typeClass}\" role=\"alert\">
+                <strong class=\"form-message-title\"><i class=\"{$iconClass}\"></i> {$title}</strong>
+                <span class=\"form-message-text\">" . htmlspecialchars($message['text']) . "</span>
+            </div>";
 }
-
 /**
- * Generates HTML for a field error message with accessibility link.
+ * Generates HTML for a field error message.
  */
 function get_field_error_html(string $formId, string $fieldName): string {
     global $form_errors; $errorId = htmlspecialchars($formId . '_' . $fieldName . '_error');
-    if (isset($form_errors[$formId][$fieldName])) { return '<p class="text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1 animate-fade-in"><i class="fas fa-exclamation-circle text-xs"></i>' . htmlspecialchars($form_errors[$formId][$fieldName]) . '</p>'; } return '';
+    if (isset($form_errors[$formId][$fieldName])) {
+        return '<p class="form-error-message" id="' . $errorId . '">
+                    <i class="fas fa-exclamation-circle"></i> ' . htmlspecialchars($form_errors[$formId][$fieldName]) .
+               '</p>';
+    }
+    return '';
 }
-
 /**
- * Returns CSS classes for field highlighting based on errors.
+ * Returns CSS class for field highlighting based on errors.
  */
 function get_field_error_class(string $formId, string $fieldName): string {
-     global $form_errors; $base = 'form-input'; $error = 'form-input-error'; return isset($form_errors[$formId][$fieldName]) ? ($base . ' ' . $error) : $base;
+    global $form_errors; return isset($form_errors[$formId][$fieldName]) ? 'form-input-error' : '';
 }
-
 /**
  * Gets ARIA describedby attribute value if error exists.
  */
 function get_aria_describedby(string $formId, string $fieldName): string {
-    global $form_errors; if (isset($form_errors[$formId][$fieldName])) { return ' aria-describedby="' . htmlspecialchars($formId . '_' . $fieldName . '_error') . '"'; } return '';
+    global $form_errors;
+    if (isset($form_errors[$formId][$fieldName])) { $errorId = htmlspecialchars($formId . '_' . $fieldName . '_error'); return ' aria-describedby="' . $errorId . '" aria-invalid="true"'; }
+    return ' aria-invalid="false"';
+}
+/**
+ * Establishes a PDO database connection.
+ */
+function get_db_connection(): ?PDO {
+    if (!defined('DB_HOST') || !defined('DB_NAME') || !defined('DB_USER') || !defined('DB_PASS') || !defined('DB_CHARSET')) { log_message("Database configuration constants are missing.", LOG_FILE_ERROR); return null; }
+    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+    $options = [ PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false, ];
+    try { $pdo = new PDO($dsn, DB_USER, DB_PASS, $options); return $pdo; }
+    catch (\PDOException $e) { log_message("Database Connection Error: " . $e->getMessage() . " (Code: " . $e->getCode() . ")", LOG_FILE_ERROR); error_log("Database Connection Error: " . $e->getMessage()); return null; }
 }
 // --- END Helper Functions ---
 
 
+// --- Form Processing & Variable Setup (Keep EXACTLY the same as in the previous version) ---
+// ... (Paste the Initialize Page Variables, Form State Variables, Form Processing Logic, GET Request logic, Prepare Form Data blocks here) ...
 // --- Initialize Page Variables ---
 $current_year = date('Y');
-$page_title = "PAHAL NGO Jalandhar | Empowering Communities, Inspiring Change";
-$page_description = "'PAHAL' is a leading volunteer-driven youth NGO in Jalandhar, Punjab, fostering holistic development through impactful initiatives in health, education, environment, and communication skills.";
-$page_keywords = "PAHAL, NGO, Jalandhar, Punjab, volunteer, youth organization, social work, community service, health camps, blood donation, education, environment, e-waste, communication skills, personality development, non-profit";
+$page_title = "PAHAL NGO Jalandhar | Empowering Communities";
+$page_description = "'PAHAL' is a volunteer-driven youth NGO in Jalandhar, Punjab, focusing on community development through health, education, environment, and skill initiatives.";
+$page_keywords = "PAHAL, NGO, Jalandhar, Punjab, volunteer, youth organization, social work, community service, health, education, environment, skills, non-profit";
 
 // --- Initialize Form State Variables ---
 $form_submissions = []; $form_messages = []; $form_errors = [];
@@ -174,34 +204,109 @@ $csrf_token = generate_csrf_token();
 
 // --- Form Processing Logic (POST Request) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // ... (Keep your existing, validated POST handling logic here) ...
-    // This includes: Security Checks, Form Identification, Sanitization,
-    // Validation, Email Sending, Logging, Setting Session Variables, Redirect.
+    $submitted_form_id = $_POST['form_id'] ?? null;
+    $pdo = null; // Initialize PDO variable
+
+    // Basic Security Checks (Honeypot & CSRF)
+    if (!empty($_POST[HONEYPOT_FIELD_NAME]) || !validate_csrf_token($_POST[CSRF_TOKEN_NAME] ?? null)) {
+        log_message("[SPAM/CSRF DETECTED] Form Failed. Form ID: {$submitted_form_id}. IP: {$_SERVER['REMOTE_ADDR']}", LOG_FILE_ERROR);
+        if ($submitted_form_id) { $_SESSION['form_messages'][$submitted_form_id] = ['type' => 'error', 'text' => 'Security validation failed. Please refresh the page and try again.']; }
+        else { $_SESSION['general_error'] = 'A security error occurred. Please try again.'; }
+        unset($_SESSION[CSRF_TOKEN_NAME]); $csrf_token = generate_csrf_token(); // Regenerate
+        header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . ($submitted_form_id ? "#" . $submitted_form_id : '')); exit;
+    }
+
+    $logContext = ''; $logFile = LOG_FILE_ERROR;
+
+    // --- Process Contact Form ---
+    if ($submitted_form_id === 'contact_form') {
+        $form_id = 'contact_form'; $form_errors[$form_id] = [];
+        $logContext = "[Contact Form]"; $logFile = LOG_FILE_CONTACT;
+        $name = sanitize_string($_POST['name'] ?? null); $email = sanitize_email($_POST['email'] ?? null); $message = sanitize_string($_POST['message'] ?? null);
+        $form_submissions[$form_id] = ['name' => $name, 'email' => $email, 'message' => $message];
+        $rules = [ 'name' => 'required|alpha_space|minLength:2|maxLength:100', 'email' => 'required|email|maxLength:255', 'message' => 'required|minLength:10|maxLength:2000', ];
+        $validation_errors = validate_data($form_submissions[$form_id], $rules); $form_errors[$form_id] = $validation_errors;
+
+        if (empty($validation_errors)) {
+            $to = RECIPIENT_EMAIL_CONTACT; $subject = "Contact Form Submission from " . $name;
+            $body = "New contact form submission:\n\nName: {$name}\nEmail: {$email}\nMessage:\n{$message}\n\nIP Address: {$_SERVER['REMOTE_ADDR']}\nTimestamp: " . date('Y-m-d H:i:s T');
+            if (send_email($to, $subject, $body, $email, $name, $logContext, $logFile)) {
+                $pdo = get_db_connection();
+                if ($pdo) {
+                    try {
+                        $sql = "INSERT INTO contact_submissions (name, email, message, submitted_at, ip_address) VALUES (:name, :email, :message, NOW(), :ip)";
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute([':name' => $name, ':email' => $email, ':message' => $message, ':ip' => $_SERVER['REMOTE_ADDR'] ?? null]);
+                        log_message("{$logContext} Data saved to database. Name: {$name}", $logFile);
+                        $form_messages[$form_id] = ['type' => 'success', 'text' => "Thank you, {$name}! Your message has been sent successfully."]; $form_submissions[$form_id] = [];
+                    } catch (\PDOException $e) {
+                        log_message("{$logContext} Database Insertion Error: " . $e->getMessage(), LOG_FILE_ERROR);
+                        $form_messages[$form_id] = ['type' => 'success', 'text' => "Thank you, {$name}! Your message was sent, but there was an issue saving it to our records. We will still get back to you."]; $form_submissions[$form_id] = [];
+                    }
+                } else {
+                    log_message("{$logContext} Database connection failed, could not save submission.", LOG_FILE_ERROR);
+                    $form_messages[$form_id] = ['type' => 'success', 'text' => "Thank you, {$name}! Your message was sent, but couldn't be saved to our database due to a connection issue."]; $form_submissions[$form_id] = [];
+                }
+            } else { $form_messages[$form_id] = ['type' => 'error', 'text' => "Sorry, {$name}, there was an error sending your message. Please try again later or contact us directly."]; }
+        } else { $errorCount = count($validation_errors); $form_messages[$form_id] = ['type' => 'error', 'text' => "Please correct the " . ($errorCount > 1 ? $errorCount . " errors" : "error") . " below."]; log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors), LOG_FILE_ERROR); }
+        $_SESSION['scroll_to'] = '#contact';
+    }
+    // --- Process Volunteer Form ---
+    elseif ($submitted_form_id === 'volunteer_form') {
+        $form_id = 'volunteer_form'; $form_errors[$form_id] = [];
+        $logContext = "[Volunteer Form]"; $logFile = LOG_FILE_VOLUNTEER;
+        $volunteer_name = sanitize_string($_POST['volunteer_name'] ?? null); $volunteer_email = sanitize_email($_POST['volunteer_email'] ?? null); $volunteer_phone = sanitize_string($_POST['volunteer_phone'] ?? null); $volunteer_area = sanitize_string($_POST['volunteer_area'] ?? null); $volunteer_availability = sanitize_string($_POST['volunteer_availability'] ?? null); $volunteer_message = sanitize_string($_POST['volunteer_message'] ?? null);
+        $form_submissions[$form_id] = [ 'volunteer_name' => $volunteer_name, 'volunteer_email' => $volunteer_email, 'volunteer_phone' => $volunteer_phone, 'volunteer_area' => $volunteer_area, 'volunteer_availability' => $volunteer_availability, 'volunteer_message' => $volunteer_message ];
+        $rules = [ 'volunteer_name' => 'required|alpha_space|minLength:2|maxLength:100', 'volunteer_email' => 'required_without:volunteer_phone|email|maxLength:255', 'volunteer_phone' => 'required_without:volunteer_email|phone|maxLength:20', 'volunteer_area' => 'required|in:Health Camps,Blood Donation Drives,Education Support,Environmental Projects,Skill Development,Event Management,General Support', 'volunteer_availability' => 'required|minLength:5|maxLength:150', 'volunteer_message' => 'maxLength:1000', ];
+        $validation_errors = validate_data($form_submissions[$form_id], $rules); $form_errors[$form_id] = $validation_errors;
+
+        if (empty($validation_errors)) {
+            $to = RECIPIENT_EMAIL_VOLUNTEER; $subject = "Volunteer Application from " . $volunteer_name;
+            $body = "New volunteer application:\n\nName: {$volunteer_name}\nEmail: " . ($volunteer_email ?: '(Not Provided)') . "\nPhone: " . ($volunteer_phone ?: '(Not Provided)') . "\nArea of Interest: {$volunteer_area}\nAvailability: {$volunteer_availability}\n" . (!empty($volunteer_message) ? "Message:\n{$volunteer_message}\n" : "") . "\nIP Address: {$_SERVER['REMOTE_ADDR']}\nTimestamp: " . date('Y-m-d H:i:s T');
+            if (send_email($to, $subject, $body, $volunteer_email, $volunteer_name, $logContext, $logFile)) {
+                $pdo = get_db_connection();
+                if ($pdo) {
+                    try {
+                        $sql = "INSERT INTO volunteer_submissions (name, email, phone, area_of_interest, availability, message, submitted_at, ip_address) VALUES (:name, :email, :phone, :area_of_interest, :availability, :message, NOW(), :ip)";
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute([':name' => $volunteer_name, ':email' => $volunteer_email ?: null, ':phone' => $volunteer_phone ?: null, ':area_of_interest' => $volunteer_area, ':availability' => $volunteer_availability, ':message' => $volunteer_message ?: null, ':ip' => $_SERVER['REMOTE_ADDR'] ?? null]);
+                        log_message("{$logContext} Data saved to database. Name: {$volunteer_name}", $logFile);
+                        $form_messages[$form_id] = ['type' => 'success', 'text' => "Thank you, {$volunteer_name}! Your volunteer application has been received. We'll be in touch soon."]; $form_submissions[$form_id] = [];
+                    } catch (\PDOException $e) { log_message("{$logContext} Database Insertion Error: " . $e->getMessage(), LOG_FILE_ERROR); $form_messages[$form_id] = ['type' => 'success', 'text' => "Thank you, {$volunteer_name}! Your application was sent, but there was an issue saving it to our records. We will still get back to you."]; $form_submissions[$form_id] = []; }
+                } else { log_message("{$logContext} Database connection failed, could not save submission.", LOG_FILE_ERROR); $form_messages[$form_id] = ['type' => 'success', 'text' => "Thank you, {$volunteer_name}! Your application was sent, but couldn't be saved to our database due to a connection issue."]; $form_submissions[$form_id] = []; }
+            } else { $form_messages[$form_id] = ['type' => 'error', 'text' => "Sorry, {$volunteer_name}, there was an error submitting your application. Please try again later."]; }
+        } else { $errorCount = count($validation_errors); $form_messages[$form_id] = ['type' => 'error', 'text' => "Please correct the " . ($errorCount > 1 ? $errorCount . " errors" : "error") . " below."]; log_message("{$logContext} Validation failed. Errors: " . json_encode($validation_errors), LOG_FILE_ERROR); }
+        $_SESSION['scroll_to'] = '#volunteer';
+    }
+     else { log_message("[WARNING] Received POST request with unknown form_id: " . ($submitted_form_id ?? 'NULL'), LOG_FILE_ERROR); header("Location: " . htmlspecialchars($_SERVER['PHP_SELF'])); exit; }
+
+    // --- Post-Processing & Redirect ---
+    unset($_SESSION[CSRF_TOKEN_NAME]); $csrf_token = generate_csrf_token();
+    $_SESSION['form_messages'] = $form_messages; $_SESSION['form_errors'] = $form_errors;
+    if (!empty($form_errors[$submitted_form_id ?? ''])) { $_SESSION['form_submissions'] = $form_submissions; }
+    else { unset($_SESSION['form_submissions'][$submitted_form_id]); if (empty($_SESSION['form_submissions'])) { unset($_SESSION['form_submissions']); } }
+    $scrollTarget = $_SESSION['scroll_to'] ?? ''; unset($_SESSION['scroll_to']);
+    header("Location: " . htmlspecialchars($_SERVER['PHP_SELF']) . $scrollTarget); exit;
 } else {
-    // --- GET Request: Retrieve session data ---
-    if (isset($_SESSION['form_messages'])) { $form_messages = $_SESSION['form_messages']; unset($_SESSION['form_messages']); } else { $form_messages = []; }
-    if (isset($_SESSION['form_errors'])) { $form_errors = $_SESSION['form_errors']; unset($_SESSION['form_errors']); } else { $form_errors = []; }
-    if (isset($_SESSION['form_submissions'])) { $form_submissions = $_SESSION['form_submissions']; unset($_SESSION['form_submissions']); } else { $form_submissions = []; }
-    $csrf_token = generate_csrf_token(); // Ensure token exists for GET
+    // --- GET Request ---
+    if (isset($_SESSION['form_messages'])) { $form_messages = $_SESSION['form_messages']; unset($_SESSION['form_messages']); }
+    if (isset($_SESSION['form_errors'])) { $form_errors = $_SESSION['form_errors']; unset($_SESSION['form_errors']); }
+    if (isset($_SESSION['form_submissions'])) { $form_submissions = $_SESSION['form_submissions']; unset($_SESSION['form_submissions']); }
+    $csrf_token = generate_csrf_token();
 }
 
-// --- Prepare Form Data for HTML Template ---
-$contact_form_name_value = get_form_value('contact_form', 'name');
-$contact_form_email_value = get_form_value('contact_form', 'email');
-$contact_form_message_value = get_form_value('contact_form', 'message');
-$volunteer_form_name_value = get_form_value('volunteer_form', 'volunteer_name');
-$volunteer_form_email_value = get_form_value('volunteer_form', 'volunteer_email');
-$volunteer_form_phone_value = get_form_value('volunteer_form', 'volunteer_phone');
-$volunteer_form_area_value = get_form_value('volunteer_form', 'volunteer_area');
-$volunteer_form_availability_value = get_form_value('volunteer_form', 'volunteer_availability');
-$volunteer_form_message_value = get_form_value('volunteer_form', 'volunteer_message');
+// --- Prepare Form Data for HTML ---
+$contact_form_name_value = get_form_value('contact_form', 'name'); $contact_form_email_value = get_form_value('contact_form', 'email'); $contact_form_message_value = get_form_value('contact_form', 'message');
+$volunteer_form_name_value = get_form_value('volunteer_form', 'volunteer_name'); $volunteer_form_email_value = get_form_value('volunteer_form', 'volunteer_email'); $volunteer_form_phone_value = get_form_value('volunteer_form', 'volunteer_phone'); $volunteer_form_area_value = get_form_value('volunteer_form', 'volunteer_area'); $volunteer_form_availability_value = get_form_value('volunteer_form', 'volunteer_availability'); $volunteer_form_message_value = get_form_value('volunteer_form', 'volunteer_message');
 
-// --- Dummy Data (Keep Existing) ---
-$news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /* ... */ ];
+// --- Focus Areas Data ---
+$focus_areas = [ ['title' => 'Health & Wellness', 'icon' => 'fas fa-heartbeat', 'description' => 'Organizing blood donation camps, health check-ups, and awareness programs.', 'link' => 'blood-donation.php'], ['title' => 'Education & Awareness', 'icon' => 'fas fa-book-open', 'description' => 'Supporting underprivileged students and conducting educational workshops.', 'link' => '#focus'], ['title' => 'Environment Protection', 'icon' => 'fas fa-leaf', 'description' => 'Leading initiatives like tree plantation and e-waste collection programs.', 'link' => 'e-waste.php'], ['title' => 'Skill Development', 'icon' => 'fas fa-comments', 'description' => 'Enhancing communication skills, personality, and leadership qualities among youth.', 'link' => '#focus'], ];
+// --- Objectives Data ---
+$objectives = [ "Foster holistic personality development among youth.", "Inculcate a spirit of voluntary work and community service.", "Promote health awareness and facilitate healthcare access.", "Contribute towards environmental sustainability.", "Bridge the gap between potential blood donors and recipients.", "Empower individuals through education and skill enhancement.", ];
 
 ?>
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth"> <!-- Added dark class toggle via JS -->
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -217,924 +322,1213 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     <meta property="og:description" content="<?= htmlspecialchars($page_description) ?>"/>
     <meta property="og:type" content="website"/>
     <meta property="og:url" content="https://your-pahal-domain.com/"> <!-- CHANGE -->
-    <meta property="og:image" content="https://your-pahal-domain.com/images/pahal-og-enhanced.jpg"> <!-- CHANGE -->
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image" content="https://your-pahal-domain.com/pahal_ngo_cover.jpg"> <!-- CHANGE -->
     <meta property="og:site_name" content="PAHAL NGO Jalandhar">
-
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://your-pahal-domain.com/"> <!-- CHANGE -->
     <meta name="twitter:title" content="<?= htmlspecialchars($page_title) ?>">
     <meta name="twitter:description" content="<?= htmlspecialchars($page_description) ?>">
-    <meta name="twitter:image" content="https://your-pahal-domain.com/images/pahal-twitter-enhanced.jpg"> <!-- CHANGE -->
+    <meta name="twitter:image" content="https://your-pahal-domain.com/pahal_ngo_cover.jpg"> <!-- CHANGE -->
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
 
-    <!-- Tailwind CSS CDN with Forms Plugin -->
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-
-    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-    
-    <!-- Fix for Tailwind CSS processing -->
-    <script>
-        // This ensures Tailwind processes the styles correctly
-        if (typeof tailwind !== 'undefined') {
-            console.log("Tailwind CSS loaded successfully");
-        } else {
-            console.error("Tailwind CSS failed to load");
-            // Fallback to load Tailwind again if needed
-            document.write('<script src="https://cdn.tailwindcss.com?plugins=forms"><\/script>');
-        }
-    </script>
-
-    <!-- Google Fonts (Poppins & Fira Code) -->
+    <!-- Google Fonts (Poppins) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-    <!-- Simple Lightbox CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.css">
-
-    <script>
-        // Tailwind Config (Enhanced with more colors/animations)
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Poppins', 'sans-serif'], heading: ['Poppins', 'sans-serif'], mono: ['Fira Code', 'monospace'],
-                    },
-                    colors: { // Define semantic names linked to CSS Variables
-                        'theme-primary': 'var(--color-primary)', 'theme-primary-hover': 'var(--color-primary-hover)', 'theme-primary-focus': 'var(--color-primary-focus)',
-                        'theme-secondary': 'var(--color-secondary)', 'theme-secondary-hover': 'var(--color-secondary-hover)',
-                        'theme-accent': 'var(--color-accent)', 'theme-accent-hover': 'var(--color-accent-hover)',
-                        'theme-success': 'var(--color-success)', 'theme-warning': 'var(--color-warning)', 'theme-info': 'var(--color-info)',
-                        'theme-bg': 'var(--color-bg)', 'theme-surface': 'var(--color-surface)', 'theme-surface-alt': 'var(--color-surface-alt)',
-                        'theme-text': 'var(--color-text)', 'theme-text-muted': 'var(--color-text-muted)', 'theme-text-heading': 'var(--color-text-heading)',
-                        'theme-border': 'var(--color-border)', 'theme-border-light': 'var(--color-border-light)',
-                        'theme-glow': 'var(--color-glow)',
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.6s ease-out forwards', 'fade-in-down': 'fadeInDown 0.7s ease-out forwards', 'fade-in-up': 'fadeInUp 0.7s ease-out forwards',
-                        'slide-in-left': 'slideInLeft 0.7s ease-out forwards', 'slide-in-right': 'slideInRight 0.7s ease-out forwards',
-                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite', 'form-message-in': 'formMessageIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards', // Smoother ease
-                        'bounce-subtle': 'bounceSubtle 2s infinite ease-in-out', 'gradient-bg': 'gradientBg 15s ease infinite', // Animated gradient
-                        'glow-pulse': 'glowPulse 2.5s infinite alternate ease-in-out', // Glow animation
-                        'icon-bounce': 'iconBounce 0.6s ease-out', // For button icons
-                    },
-                    keyframes: {
-                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-                        fadeInDown: { '0%': { opacity: '0', transform: 'translateY(-25px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }, // Increased distance
-                        fadeInUp: { '0%': { opacity: '0', transform: 'translateY(25px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-                        slideInLeft: { '0%': { opacity: '0', transform: 'translateX(-40px)' }, '100%': { opacity: '1', transform: 'translateX(0)' } },
-                        slideInRight: { '0%': { opacity: '0', transform: 'translateX(40px)' }, '100%': { opacity: '1', transform: 'translateX(0)' } },
-                        formMessageIn: { '0%': { opacity: '0', transform: 'translateY(15px) scale(0.95)' }, '100%': { opacity: '1', transform: 'translateY(0) scale(1)' } },
-                        bounceSubtle: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },
-                        gradientBg: { // Keyframes for animated gradient
-                           '0%': { backgroundPosition: '0% 50%' }, '50%': { backgroundPosition: '100% 50%' }, '100%': { backgroundPosition: '0% 50%' },
-                        },
-                        glowPulse: { // Keyframes for glow effect
-                            '0%': { boxShadow: '0 0 5px 0px var(--color-glow)' }, '100%': { boxShadow: '0 0 20px 5px var(--color-glow)' },
-                        },
-                        iconBounce: { // Keyframes for icon bounce on hover
-                             '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-3px)' },
-                        }
-                    },
-                    boxShadow: { // Keep existing + add focus shadow variable
-                        'card': '0 5px 15px rgba(0, 0, 0, 0.07)', 'card-dark': '0 8px 25px rgba(0, 0, 0, 0.3)',
-                        'input-focus': '0 0 0 3px var(--color-primary-focus)',
-                    },
-                    container: { // Keep previous container settings
-                      center: true, padding: { DEFAULT: '1rem', sm: '1.5rem', lg: '2rem' }, screens: { sm: '640px', md: '768px', lg: '1024px', xl: '1280px' },
-                    },
-                }
-            }
-        }
-    </script>
-    <style type="text/tailwindcss">
-        /* Theme Variables - More Vibrant Palette */
-        :root { /* Light Theme */
-          --color-primary: #059669; /* Emerald 600 */ --color-primary-hover: #047857; /* Emerald 700 */ --color-primary-focus: rgba(5, 150, 105, 0.3);
-          --color-secondary: #6366f1; /* Indigo 500 */ --color-secondary-hover: #4f46e5; /* Indigo 600 */
-          --color-accent: #e11d48; /* Rose 600 */ --color-accent-hover: #be123c; /* Rose 700 */
-          --color-success: #16a34a; /* Green 600 */ --color-warning: #f59e0b; /* Amber 500 */ --color-info: #0ea5e9; /* Sky 500 */
-          --color-bg: #f8fafc; /* Slate 50 */
-          --color-surface: #ffffff; --color-surface-alt: #f1f5f9; /* Slate 100 */
-          --color-text: #1e293b; /* Slate 800 */ --color-text-muted: #64748b; /* Slate 500 */ --color-text-heading: #0f172a; /* Slate 900 */
-          --color-border: #e2e8f0; /* Slate 200 */ --color-border-light: #f1f5f9; /* Slate 100 */
-          --color-glow: rgba(5, 150, 105, 0.4); /* Primary glow color */
-          --scrollbar-thumb: #cbd5e1; /* Slate 300 */ --scrollbar-track: #f1f5f9; /* Slate 100 */
-          color-scheme: light;
+    <!-- Simple CSS -->
+    <style>
+        /* --- CSS Variables --- */
+        :root {
+            --font-sans: 'Poppins', sans-serif;
+            /* Light Theme */
+            --color-primary: #059669; /* Emerald 600 */
+            --color-primary-hover: #047857; /* Emerald 700 */
+            --color-secondary: #4f46e5; /* Indigo 600 */
+            --color-secondary-hover: #4338ca; /* Indigo 700 */
+            --color-accent: #e11d48; /* Rose 600 */
+            --color-accent-hover: #be123c; /* Rose 700 */
+            --color-success: #16a34a;
+            --color-error: #dc2626; /* Red 600 */
+            --color-bg: #f8fafc; /* Slate 50 */
+            --color-surface: #ffffff;
+            --color-surface-alt: #f1f5f9; /* Slate 100 */
+            --color-text: #1e293b; /* Slate 800 */
+            --color-text-muted: #64748b; /* Slate 500 */
+            --color-text-heading: #0f172a; /* Slate 900 */
+            --color-border: #e2e8f0; /* Slate 200 */
+            --color-white: #ffffff;
+            --color-black: #000000;
+            --header-height: 70px;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            --focus-ring-color: rgba(79, 70, 229, 0.5); /* Secondary color focus */
+            color-scheme: light;
         }
 
         html.dark {
-          --color-primary: #34d399; /* Emerald 400 */ --color-primary-hover: #6ee7b7; /* Emerald 300 */ --color-primary-focus: rgba(52, 211, 153, 0.4);
-          --color-secondary: #a78bfa; /* Violet 400 */ --color-secondary-hover: #c4b5fd; /* Violet 300 */
-          --color-accent: #f87171; /* Red 400 */ --color-accent-hover: #fb7185; /* Rose 400 */
-          --color-success: #4ade80; /* Green 400 */ --color-warning: #facc15; /* Yellow 400 */ --color-info: #38bdf8; /* Sky 400 */
-          --color-bg: #0b1120; /* Darker Slate */
-          --color-surface: #1e293b; /* Slate 800 */ --color-surface-alt: #334155; /* Slate 700 */
-          --color-text: #cbd5e1; /* Slate 300 */ --color-text-muted: #94a3b8; /* Slate 400 */ --color-text-heading: #f1f5f9; /* Slate 100 */
-          --color-border: #475569; /* Slate 600 */ --color-border-light: #334155; /* Slate 700 */
-          --color-glow: rgba(52, 211, 153, 0.5);
-          --scrollbar-thumb: #475569; /* Slate 600 */ --scrollbar-track: #1e293b; /* Slate 800 */
-          color-scheme: dark;
+            /* Dark Theme */
+            --color-primary: #34d399; /* Emerald 400 */
+            --color-primary-hover: #6ee7b7; /* Emerald 300 */
+            --color-secondary: #818cf8; /* Indigo 400 */
+            --color-secondary-hover: #a78bfa; /* Violet 400 */
+            --color-accent: #f87171; /* Red 400 */
+            --color-accent-hover: #fb7185; /* Rose 400 */
+            --color-success: #4ade80;
+            --color-error: #f87171; /* Red 400 */
+            --color-bg: #0f172a; /* Slate 900 */
+            --color-surface: #1e293b; /* Slate 800 */
+            --color-surface-alt: #334155; /* Slate 700 */
+            --color-text: #cbd5e1; /* Slate 300 */
+            --color-text-muted: #94a3b8; /* Slate 400 */
+            --color-text-heading: #f1f5f9; /* Slate 100 */
+            --color-border: #475569; /* Slate 600 */
+            --focus-ring-color: rgba(167, 139, 250, 0.6); /* Violet 400 focus */
+             color-scheme: dark;
         }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
-        ::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 5px; }
-        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 5px; border: 2px solid var(--scrollbar-track); }
-        ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--scrollbar-thumb) 75%, white); }
-
-
-        @layer base {
-            html { @apply scroll-smooth antialiased; }
-            /* Add body padding top for fixed header AFTER header height is calculated in JS or set fixed */
-            body { @apply bg-theme-bg text-theme-text font-sans transition-colors duration-300 overflow-x-hidden pt-[70px]; } /* Added pt-[70px] here */
-            h1, h2, h3, h4, h5, h6 { @apply font-heading font-semibold text-theme-text-heading tracking-tight leading-tight; }
-            h1 { @apply text-4xl md:text-5xl lg:text-6xl font-extrabold; } /* Bolder H1 */
-            h2 { @apply text-3xl md:text-4xl font-bold mb-4; }
-            h3 { @apply text-xl md:text-2xl font-bold text-theme-primary mb-4 mt-5; }
-            h4 { @apply text-lg font-semibold text-theme-secondary mb-2; }
-            p { @apply mb-5 leading-relaxed text-base max-w-prose; }
-            a { @apply text-theme-secondary hover:text-theme-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-theme-secondary/50 rounded-sm; transition-colors duration-200; }
-            a:not(.btn):not(.btn-secondary):not(.btn-outline):not(.nav-link):not(.footer-link) { /* More specific default link */
-                 @apply underline decoration-theme-secondary/50 hover:decoration-theme-primary decoration-1 underline-offset-2;
-            }
-            hr { @apply border-theme-border/40 my-12; } /* Lighter border */
-            blockquote { @apply border-l-4 border-theme-secondary bg-theme-surface-alt p-5 my-6 italic text-theme-text-muted shadow-inner rounded-r-md;}
-            blockquote cite { @apply block not-italic mt-2 text-sm text-theme-text-muted/80;}
-            address { @apply not-italic;}
-            *:focus-visible { @apply outline-none ring-2 ring-offset-2 ring-offset-theme-surface ring-theme-primary/70 rounded-md; }
-            .honeypot-field { @apply !absolute !-left-[9999px] !w-px !h-px !overflow-hidden !opacity-0; }
+        /* --- Base & Reset --- */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; font-size: 16px; }
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            padding-top: var(--header-height); /* Offset for fixed header */
+            transition: background-color 0.3s ease, color 0.3s ease;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        @layer components {
-            .section-padding { @apply py-16 md:py-20 lg:py-24 px-4; }
-            .section-title { @apply text-center mb-12 md:mb-16 text-theme-primary; }
-            .section-title-underline::after { content: ''; @apply block w-24 h-1 bg-gradient-to-r from-theme-secondary to-theme-accent mx-auto mt-4 rounded-full opacity-80; } /* Gradient underline */
+        /* --- Typography --- */
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--color-text-heading);
+            font-weight: 600; /* Semibold */
+            margin-bottom: 0.75em; /* Consistent bottom margin */
+            line-height: 1.3;
+        }
+        h1 { font-size: 2.5rem; font-weight: 700; } /* 40px */
+        h2 { font-size: 2rem; } /* 32px */
+        h3 { font-size: 1.5rem; } /* 24px */
+        h4 { font-size: 1.25rem; } /* 20px */
+        p { margin-bottom: 1rem; max-width: 65ch; }
+        a { color: var(--color-secondary); text-decoration: none; transition: color 0.2s ease; }
+        a:hover { color: var(--color-secondary-hover); text-decoration: underline; }
+        *:focus-visible {
+             outline: 2px solid transparent;
+             box-shadow: 0 0 0 3px var(--focus-ring-color);
+             border-radius: 3px;
+             outline-offset: 1px;
+        }
+        address { font-style: normal; }
+        hr { border: none; height: 1px; background-color: var(--color-border); margin: 2rem 0; }
+        /* Helper for visually hidden */
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
+        .hidden { display: none !important; }
 
-            /* Enhanced Buttons */
-            .btn { @apply relative inline-flex items-center justify-center px-7 py-3 border border-transparent text-base font-medium rounded-lg shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-surface overflow-hidden transition-all duration-300 ease-out transform hover:-translate-y-1 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed group; }
-            .btn::before { /* Subtle gradient overlay */
-                content: ''; @apply absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity duration-300;
-                background: linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0));
-            }
-            .btn i { @apply mr-2 text-sm transition-transform duration-300 group-hover:scale-110; } /* Icon animation */
-            .btn-primary { @apply text-white bg-theme-primary hover:bg-theme-primary-hover focus-visible:ring-theme-primary; }
-            .btn-secondary { @apply text-white bg-theme-secondary hover:bg-theme-secondary-hover focus-visible:ring-theme-secondary; }
-            .btn-accent { @apply text-white bg-theme-accent hover:bg-theme-accent-hover focus-visible:ring-theme-accent; }
-            .btn-outline { @apply text-theme-primary border-2 border-current bg-transparent hover:bg-theme-primary/10 focus-visible:ring-theme-primary; }
-             .btn-outline.secondary { @apply !text-theme-secondary hover:!bg-theme-secondary/10 focus-visible:ring-theme-secondary; } /* Outline secondary */
-             .btn-icon { @apply p-2.5 rounded-full focus-visible:ring-offset-0; } /* Slightly larger icon button */
-
-            /* Enhanced Cards */
-            .card { @apply bg-theme-surface p-6 md:p-8 rounded-xl shadow-card dark:shadow-card-dark border border-theme-border/60 overflow-hidden relative transition-all duration-300; }
-            .card-hover { @apply hover:shadow-xl dark:hover:shadow-2xl hover:border-theme-primary/50 hover:scale-[1.03] z-10; } /* Enhanced hover */
-            .card::after { /* Subtle glow on hover preparation */
-                content: ''; @apply absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 pointer-events-none;
-                box-shadow: 0 0 25px -5px var(--color-glow);
-            }
-            .card-hover:hover::after { @apply opacity-70; }
-
-            /* Panel with Glassmorphism */
-            .panel { @apply bg-theme-surface/75 dark:bg-theme-surface/70 backdrop-blur-xl border border-theme-border/40 rounded-2xl shadow-lg p-6 md:p-8; }
-
-            /* Enhanced Forms */
-            .form-label { @apply block mb-1.5 text-sm font-medium text-theme-text-muted; }
-            .form-label.required::after { content: '*'; @apply text-theme-accent ml-0.5; }
-            .form-input { @apply block w-full px-4 py-2.5 rounded-lg border bg-theme-bg dark:bg-theme-surface/60 border-theme-border placeholder-theme-text-muted/70 text-theme-text shadow-sm transition duration-200 ease-in-out focus:border-theme-primary focus:ring-2 focus:ring-theme-primary/50 focus:outline-none disabled:opacity-60; }
-            /* Autofill styles */
-            input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, textarea:-webkit-autofill:hover, textarea:-webkit-autofill:focus, select:-webkit-autofill, select:-webkit-autofill:hover, select:-webkit-autofill:focus { -webkit-text-fill-color: var(--color-text); -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset; transition: background-color 5000s ease-in-out 0s; }
-            html.dark input:-webkit-autofill, html.dark input:-webkit-autofill:hover, html.dark input:-webkit-autofill:focus, html.dark textarea:-webkit-autofill, html.dark textarea:-webkit-autofill:hover, html.dark textarea:-webkit-autofill:focus, html.dark select:-webkit-autofill, html.dark select:-webkit-autofill:hover, html.dark select:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset; }
-            select.form-input { /* Keep custom arrow if any, or rely on @tailwindcss/forms */ }
-            textarea.form-input { @apply min-h-[120px] resize-vertical; }
-            .form-input-error { @apply !border-theme-accent ring-2 ring-theme-accent/50 focus:!border-theme-accent focus:!ring-theme-accent/50; }
-            .form-error-message { @apply text-theme-accent dark:text-red-400 text-xs italic mt-1 font-medium flex items-center gap-1; } /* Error message style */
-            .form-section { @apply card border-l-4 border-theme-primary mt-8; } /* Default border */
-             #volunteer-section .form-section { @apply !border-theme-accent; } /* Volunteer form border */
-             #contact .form-section { @apply !border-theme-secondary; } /* Contact form border */
-
-
-             /* Spinner */
-             .spinner { @apply inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-current; } /* Slightly larger */
-
-             /* Footer Styles */
-             .footer-heading { @apply text-lg font-semibold text-white mb-5 relative pb-2; }
-             .footer-heading::after { @apply content-[''] absolute bottom-0 left-0 w-10 h-0.5 bg-theme-primary rounded-full; } /* Footer heading underline */
-             .footer-link { @apply text-gray-400 hover:text-white hover:underline text-sm transition-colors duration-200; }
-             footer ul.footer-links li { @apply mb-1.5; } /* Space out footer links */
-             footer ul.footer-links li a { @apply footer-link inline-flex items-center gap-1.5; }
-             footer ul.footer-links i { @apply opacity-70; }
-             footer address p { @apply mb-3 flex items-start gap-3; } /* Align address items */
-             footer address i { @apply text-theme-primary mt-1 w-4 text-center flex-shrink-0; }
-             .footer-social-icon { @apply text-xl transition duration-300 text-gray-400 hover:scale-110; } /* Social icons */
-             .footer-bottom { @apply border-t border-gray-700/50 pt-8 mt-12 text-center text-sm text-gray-500; }
-
-            /* --- MOVED SECTION STYLES START --- */
-             #main-header { @apply fixed top-0 left-0 w-full bg-theme-surface/85 dark:bg-theme-bg/80 backdrop-blur-xl z-50 shadow-sm transition-all duration-300 border-b border-theme-border/30; min-height: 70px; }
-             #main-header.scrolled { @apply shadow-lg bg-theme-surface/95 dark:bg-theme-bg/90 border-theme-border/50; }
-             /* body padding moved to @layer base */
-
-              /* Navigation */
-              #navbar ul li a { @apply text-theme-text-muted hover:text-theme-primary dark:hover:text-theme-primary font-medium py-2 relative transition duration-300 ease-in-out text-sm lg:text-base block lg:inline-block lg:py-0 px-3 lg:px-2 xl:px-3; } /* Adjusted padding */
-              #navbar ul li a::after { content: ''; @apply absolute bottom-[-5px] left-0 w-0 h-[3px] bg-gradient-to-r from-theme-secondary to-theme-primary opacity-0 transition-all duration-300 ease-out rounded-full group-hover:opacity-100 group-hover:w-full; } /* Animated underline */
-              #navbar ul li a.active { @apply text-theme-primary font-semibold; }
-              #navbar ul li a.active::after { @apply w-full opacity-100; }
-
-              /* Mobile menu toggle */
-              .menu-toggle { @apply text-theme-text-muted hover:text-theme-primary transition-colors duration-200; }
-              .menu-toggle span { @apply block w-6 h-0.5 bg-current rounded-full transition-all duration-300 ease-in-out; }
-              .menu-toggle span:nth-child(1) { @apply mb-1.5; }
-              .menu-toggle span:nth-child(3) { @apply mt-1.5; }
-              .menu-toggle.open span:nth-child(1) { @apply transform rotate-45 translate-y-[6px]; } /* Adjusted translate */
-              .menu-toggle.open span:nth-child(2) { @apply opacity-0; }
-              .menu-toggle.open span:nth-child(3) { @apply transform -rotate-45 -translate-y-[6px]; } /* Adjusted translate */
-
-
-              /* Mobile Navbar container */
-              #navbar { @apply w-full lg:w-auto lg:flex hidden max-h-0 lg:max-h-screen overflow-hidden lg:overflow-visible absolute lg:relative top-[70px] lg:top-auto left-0 bg-theme-surface dark:bg-theme-surface lg:bg-transparent shadow-xl lg:shadow-none lg:border-none border-t border-theme-border transition-all duration-500 ease-in-out; }
-              #navbar.open { @apply block; max-height: calc(100vh - 70px); /* JS could also set this */ } /* Ensure it opens */
-
-             /* Hero Section */
-             #hero {
-                 /* Use the animated gradient utility */
-                 @apply animated-gradient-primary text-white min-h-[calc(100vh-70px)] flex items-center py-20 relative overflow-hidden;
-             }
-             #hero::before { /* Subtle overlay */
-                 content: ''; @apply absolute inset-0 bg-black/20;
-             }
-             .hero-text h1 { @apply !text-white mb-6 drop-shadow-xl leading-tight font-extrabold; }
-             .hero-logo img { @apply drop-shadow-2xl animate-glow-pulse bg-white/10; animation-duration: 4s; } /* Slower glow pulse */
-             .hero-scroll-indicator { @apply absolute bottom-8 left-1/2 -translate-x-1/2 z-10 hidden md:block; }
-             .hero-scroll-indicator a { @apply text-white/60 hover:text-white text-4xl animate-bounce-subtle; }
-
-             /* Focus Areas */
-             .focus-item { @apply card card-hover border-t-4 border-theme-secondary bg-theme-surface p-6 md:p-8 text-center flex flex-col items-center; } /* Changed border color */
-             .focus-item .icon { @apply text-5xl text-theme-secondary mb-6 inline-block transition-transform duration-300 group-hover:scale-110 group-hover:animate-icon-bounce; } /* Bounce icon */
-             .focus-item h3 { @apply text-xl text-theme-text-heading mb-3 transition-colors duration-300 group-hover:text-theme-secondary; }
-             .focus-item p { @apply text-sm text-theme-text-muted leading-relaxed flex-grow mb-4 text-center; }
-             .focus-item .read-more-link { @apply relative block text-sm font-semibold text-theme-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:underline pt-2; }
-             .focus-item .read-more-link::after { content: '\f061'; font-family: 'Font Awesome 6 Free'; @apply font-black text-xs ml-1.5 opacity-0 group-hover:opacity-100 translate-x-[-5px] group-hover:translate-x-0 transition-all duration-300 inline-block;} /* Animated arrow */
-
-             /* Objectives Section */
-             #objectives { @apply bg-gradient-to-b from-theme-bg to-theme-surface-alt dark:from-theme-bg dark:to-theme-surface/30; } /* Subtle gradient background */
-             .objective-item { @apply bg-theme-surface/80 dark:bg-theme-surface/90 backdrop-blur-sm p-5 rounded-lg shadow-sm transition duration-300 ease-in-out hover:shadow-md hover:border-theme-secondary border-l-4 border-transparent flex items-start space-x-4; }
-             .objective-item i { @apply text-theme-secondary group-hover:text-theme-accent transition-all duration-300 flex-shrink-0 w-6 text-center text-xl group-hover:rotate-[15deg]; } /* Rotate icon */
-
-             /* News Section */
-             #news-section { @apply bg-theme-surface-alt dark:bg-theme-surface/50; }
-             #news-section .news-card { @apply card card-hover flex flex-col; }
-             #news-section .news-card img { @apply rounded-t-xl; } /* Ensure img corners match card */
-             #news-section .news-card .news-content { @apply p-5 flex flex-col flex-grow; }
-             #news-section .news-card .date { @apply block text-xs text-theme-text-muted mb-2; }
-             #news-section .news-card h4 { @apply text-lg font-semibold text-theme-text-heading mb-2 leading-snug flex-grow; }
-             #news-section .news-card h4 a { @apply text-inherit hover:text-inherit; } /* Use inherit for link color */
-             #news-section .news-card p { @apply text-sm text-theme-text-muted mb-4 leading-relaxed; }
-             #news-section .news-card .read-more-action { @apply mt-auto pt-3 border-t border-theme-border-light; }
-
-             /* Volunteer/Donate Sections */
-              #volunteer-section { @apply animated-gradient-accent text-white relative; } /* Use animated gradient */
-              #volunteer-section::before { content:''; @apply absolute inset-0 bg-black/25;} /* Darken overlay */
-              #donate-section { @apply animated-gradient-primary text-white relative; }
-              #donate-section::before { content:''; @apply absolute inset-0 bg-black/25;}
-              #volunteer-section .section-title, #donate-section .section-title { @apply !text-white relative z-10; }
-              #volunteer-section .section-title::after, #donate-section .section-title::after { @apply !bg-white/70 relative z-10; }
-              #volunteer-section form, #donate-section > div > div { @apply relative z-10; } /* Ensure form/content is above overlay */
-              #volunteer-section .panel { @apply !bg-black/30 dark:!bg-black/40 !border-white/20; } /* Adjust panel for gradient bg */
-              #volunteer-section .form-label { @apply !text-gray-100; }
-              /* Define inverted input style */
-              .form-input-inverted { @apply !bg-white/10 !border-gray-400/40 !text-white placeholder:!text-gray-300/60 focus:!bg-white/20 focus:!border-white focus:!ring-white/50; }
-              /* Apply inverted style where needed */
-              #volunteer-section .form-input { @apply form-input-inverted; }
-               /* Override error state for inverted */
-              #volunteer-section .form-input-error { @apply !border-red-400 !ring-red-400/60 focus:!border-red-400 focus:!ring-red-400/60; }
-
-
-             /* Gallery */
-             .gallery-item img { @apply transition-all duration-400 ease-in-out group-hover:scale-105 group-hover:brightness-110 filter group-hover:contrast-110; } /* Add contrast */
-
-             /* Associates */
-             #associates { @apply bg-theme-surface-alt dark:bg-theme-surface/50; }
-             .associate-logo img { @apply filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100; }
-             .associate-logo p { @apply text-xs font-medium text-theme-text-muted group-hover:text-theme-primary transition-colors; }
-
-             /* Contact Section */
-             #contact { @apply bg-gradient-to-b from-theme-surface-alt to-theme-bg dark:from-theme-surface/50 dark:to-theme-bg;}
-             #contact .panel { @apply !bg-theme-surface dark:!bg-theme-surface !border-theme-border/50; } /* Solid surface for form */
-             .contact-info-item { @apply flex items-start gap-4; }
-             .contact-info-item i { @apply text-theme-primary text-lg mt-1 w-5 text-center flex-shrink-0; }
-             #contact .registration-info { @apply bg-theme-surface dark:bg-theme-surface/80 p-4 rounded-md border border-theme-border text-xs text-theme-text-muted mt-8 shadow-inner;}
-
-             /* Footer */
-             footer { @apply bg-slate-900 dark:bg-black text-gray-400 pt-16 pb-8 mt-0 border-t-4 border-theme-primary dark:border-theme-primary; }
-             footer .footer-text { @apply text-sm text-gray-400 mb-2 leading-relaxed; }
-
-             /* Back to Top */
-             #back-to-top { @apply fixed bottom-6 right-6 z-[60] p-3 rounded-full bg-theme-primary text-white shadow-lg hover:bg-theme-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-theme-primary opacity-0 invisible transition-all duration-300 hover:scale-110 active:scale-95; }
-             #back-to-top.visible { @apply opacity-100 visible; }
-
-             /* Modal Styles */
-             .modal-container { @apply fixed inset-0 bg-black/70 dark:bg-black/80 z-[100] hidden items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300 ease-out; } /* Added transition */
-             .modal-container.flex { @apply flex; opacity: 1; } /* Use flex to show */
-             .modal-container.hidden { @apply hidden; opacity: 0; } /* Use hidden to hide */
-
-             .modal-box { @apply bg-theme-surface rounded-lg shadow-xl p-6 md:p-8 w-full max-w-lg text-left relative transform transition-all duration-300 scale-95 opacity-0; } /* Wider modal */
-             .modal-container.flex .modal-box { @apply scale-100 opacity-100; } /* Animate in */
-
-             #bank-details-modal h3 { @apply !text-theme-primary !mt-0 mb-5 border-b border-theme-border pb-3; } /* Title style */
-             .modal-content-box { @apply bg-theme-surface-alt dark:bg-theme-surface/50 p-4 rounded-md border border-theme-border/50 space-y-2 my-5 text-sm; }
-             .modal-content-box p strong { @apply font-medium text-theme-text-heading; }
-             .modal-footer-note { @apply text-xs text-theme-text-muted text-center mt-6 italic; }
-             .close-button { @apply absolute top-4 right-4 text-theme-text-muted hover:text-theme-accent p-1 rounded-full transition-colors focus-visible:ring-theme-accent; }
-            /* --- MOVED SECTION STYLES END --- */
+        /* --- Layout --- */
+        .container {
+            width: 100%;
+            max-width: 1200px; /* Max width */
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .section-padding { padding: 4rem 0; /* ~py-16 */ }
+         @media (min-width: 768px) {
+            .section-padding { padding: 5rem 0; /* ~py-20 */ }
+            h1 { font-size: 3rem; } /* 48px */
+            h2 { font-size: 2.25rem; } /* 36px */
+            h3 { font-size: 1.75rem; } /* 28px */
+        }
+         @media (min-width: 1024px) {
+            .section-padding { padding: 6rem 0; /* ~py-24 */ }
+            h1 { font-size: 3.75rem; } /* 60px */
         }
 
-        @layer utilities {
-            /* Animation Delays */
-             .delay-50 { animation-delay: 0.05s; } .delay-100 { animation-delay: 0.1s; } .delay-150 { animation-delay: 0.15s; } .delay-200 { animation-delay: 0.2s; } .delay-300 { animation-delay: 0.3s; } .delay-400 { animation-delay: 0.4s; } .delay-500 { animation-delay: 0.5s; } .delay-700 { animation-delay: 0.7s; }
-
-             /* Animation on Scroll Classes */
-             .animate-on-scroll { opacity: 0; transition: opacity 0.8s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); } /* Smoother ease */
-             .animate-on-scroll.fade-in-up { transform: translateY(40px); } /* Increase distance */
-             .animate-on-scroll.fade-in-left { transform: translateX(-50px); }
-             .animate-on-scroll.fade-in-right { transform: translateX(50px); }
-             .animate-on-scroll.is-visible { opacity: 1; transform: translate(0, 0); }
-
-             /* Animated Gradient Background Utility */
-             .animated-gradient-primary {
-                background: linear-gradient(-45deg, var(--color-primary), var(--color-secondary), var(--color-info), var(--color-primary));
-                background-size: 400% 400%;
-                animation: gradientBg 18s ease infinite;
-             }
-             .animated-gradient-accent { /* Adjusted name */
-                 background: linear-gradient(-45deg, var(--color-accent), var(--color-warning), var(--color-secondary), var(--color-accent));
-                 background-size: 400% 400%;
-                 animation: gradientBg 20s ease infinite;
-             }
-             /* Corrected: volunteer section uses accent gradient */
-             .animated-gradient-secondary { @apply animated-gradient-accent; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        .text-center { text-align: center; }
+        .section-title {
+            text-align: center;
+            color: var(--color-primary);
+            margin-bottom: 3rem; /* Spacing below title */
         }
+        .section-title.underline::after {
+            content: '';
+            display: block;
+            width: 80px; /* Width of underline */
+            height: 3px; /* Thickness */
+            background: linear-gradient(to right, var(--color-secondary), var(--color-accent));
+            margin: 0.75rem auto 0; /* Spacing above/below */
+            border-radius: 2px;
+            opacity: 0.8;
+        }
+        .grid { display: grid; gap: 1.5rem; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .gap-small { gap: 0.75rem; }
+        .gap-medium { gap: 1.5rem; }
+        .gap-large { gap: 2.5rem; }
+
+        /* --- Header --- */
+        #main-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: var(--header-height);
+            background-color: rgba(255, 255, 255, 0.9); /* Light mode bg */
+            border-bottom: 1px solid var(--color-border);
+            box-shadow: var(--shadow-sm);
+            z-index: 100;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        html.dark #main-header {
+             background-color: rgba(15, 23, 42, 0.9); /* Dark mode bg (slate-900) */
+             border-bottom-color: var(--color-border);
+        }
+        #main-header.scrolled {
+             background-color: rgba(255, 255, 255, 0.95);
+             box-shadow: var(--shadow-md);
+        }
+        html.dark #main-header.scrolled {
+             background-color: rgba(15, 23, 42, 0.95);
+        }
+        #main-header .container { display: flex; align-items: center; justify-content: space-between; height: 100%; }
+        .logo a { display: flex; align-items: center; gap: 0.5rem; font-size: 1.5rem; font-weight: 700; color: var(--color-primary); }
+        .logo img { height: 30px; width: 30px; }
+
+        /* --- Navigation --- */
+        #navbar ul { list-style: none; display: flex; align-items: center; gap: 0.25rem; }
+        #navbar ul li a.nav-link {
+            display: block;
+            padding: 0.5rem 0.75rem; /* Padding for links */
+            color: var(--color-text-muted);
+            font-weight: 500; /* Medium weight */
+            font-size: 0.95rem;
+            border-radius: 4px;
+            position: relative;
+             transition: color 0.2s ease, background-color 0.2s ease;
+        }
+        #navbar ul li a.nav-link:hover { color: var(--color-primary); background-color: rgba(0,0,0,0.03); }
+        html.dark #navbar ul li a.nav-link:hover { background-color: rgba(255,255,255,0.05); }
+        #navbar ul li a.nav-link.active { color: var(--color-primary); font-weight: 600; }
+        /* Simple underline for active/hover */
+        #navbar ul li a.nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 2px; /* Position underline */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 2px;
+            background-color: var(--color-primary);
+            transition: width 0.3s ease;
+        }
+        #navbar ul li a.nav-link:hover::after,
+        #navbar ul li a.nav-link.active::after { width: 60%; } /* Underline width */
+
+        /* Dark Mode Toggle Button */
+        #dark-mode-toggle {
+             background: none; border: none; cursor: pointer;
+             color: var(--color-text-muted); font-size: 1.1rem; padding: 0.5rem;
+             border-radius: 50%; transition: color 0.2s, background-color 0.2s;
+             margin-left: 0.5rem; line-height: 0; /* Align icon better */
+        }
+        #dark-mode-toggle:hover { color: var(--color-primary); background-color: rgba(0,0,0,0.05); }
+        html.dark #dark-mode-toggle:hover { background-color: rgba(255,255,255,0.1); }
+
+        /* --- Mobile Navigation --- */
+        #menu-toggle-btn { display: none; background: none; border: none; cursor: pointer; padding: 0.5rem; }
+        #menu-toggle-btn span {
+            display: block; width: 24px; height: 2px; background-color: var(--color-text-muted);
+            margin: 5px 0; border-radius: 1px; transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        #menu-toggle-btn.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        #menu-toggle-btn.open span:nth-child(2) { opacity: 0; }
+        #menu-toggle-btn.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        @media (max-width: 1023px) { /* Breakpoint for mobile nav */
+             #menu-toggle-btn { display: block; }
+             #navbar {
+                 display: none; /* Hidden by default */
+                 position: absolute;
+                 top: var(--header-height);
+                 left: 0;
+                 width: 100%;
+                 background-color: var(--color-surface);
+                 border-top: 1px solid var(--color-border);
+                 box-shadow: var(--shadow-lg);
+                 padding: 1rem 0;
+                 max-height: calc(100vh - var(--header-height));
+                 overflow-y: auto;
+             }
+             html.dark #navbar { background-color: var(--color-surface); border-top-color: var(--color-border); }
+             #navbar.open { display: block; }
+             #navbar ul { flex-direction: column; align-items: stretch; gap: 0; }
+             #navbar ul li { width: 100%; }
+             #navbar ul li a.nav-link { display: block; text-align: center; padding: 0.75rem 1rem; border-radius: 0; border-bottom: 1px solid var(--color-border); }
+             #navbar ul li:last-child a.nav-link { border-bottom: none; }
+             #navbar ul li a.nav-link::after { display: none; } /* Hide underline on mobile */
+             /* Center dark mode toggle on mobile */
+             #navbar ul li:has(#dark-mode-toggle) { margin-top: 1rem; border-top: 1px solid var(--color-border); padding-top: 1rem; text-align: center; }
+             #dark-mode-toggle { margin: 0 auto; }
+        }
+
+        /* --- Hero Section --- */
+        #hero {
+            background: linear-gradient(135deg, #059669, #4f46e5, #0ea5e9); /* Emerald, Indigo, Sky */
+            color: var(--color-white);
+            min-height: calc(90vh - var(--header-height));
+            display: flex;
+            align-items: center;
+            padding: 3rem 0; /* Reduced padding */
+            position: relative;
+            overflow: hidden;
+        }
+        html.dark #hero {
+             background: linear-gradient(135deg, #065f46, #3730a3, #0369a1); /* Darker shades */
+        }
+        #hero::before { /* Subtle overlay */
+             content: ''; position: absolute; inset: 0; background-color: rgba(0, 0, 0, 0.15);
+        }
+        .hero-content { position: relative; z-index: 1; display: grid; gap: 2rem; align-items: center; }
+        .hero-text h1 { color: var(--color-white); line-height: 1.2; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); }
+        .hero-text p { font-size: 1.1rem; opacity: 0.9; max-width: 55ch; margin-bottom: 2rem; }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+        .hero-logo { display: flex; justify-content: center; }
+        .hero-logo img {
+            width: 180px; height: 180px; border-radius: 50%; background-color: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            object-fit: contain;
+        }
+         .hero-scroll-indicator { display: none; /* Keep hidden for simplicity */ }
+        @media (min-width: 1024px) {
+             #hero { padding: 4rem 0; }
+             .hero-content { grid-template-columns: 1fr 1fr; gap: 3rem; }
+             .hero-text { text-align: left; }
+             .hero-text p { font-size: 1.2rem; }
+             .hero-actions { justify-content: flex-start; }
+             .hero-logo { justify-content: flex-end; }
+             .hero-logo img { width: 240px; height: 240px; }
+             /* Optional: Show scroll indicator on desktop */
+             /* .hero-scroll-indicator { display: block; position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 1; } */
+             /* .hero-scroll-indicator a { color: rgba(255,255,255,0.6); font-size: 2rem; } */
+             /* .hero-scroll-indicator a:hover { color: var(--color-white); } */
+        }
+
+        /* --- Buttons --- */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.75rem 1.5rem; /* Button padding */
+            font-size: 1rem; font-weight: 500;
+            border-radius: 6px; /* Rounded corners */
+            border: 1px solid transparent;
+            cursor: pointer;
+            text-align: center;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+            white-space: nowrap; /* Prevent wrapping */
+            box-shadow: var(--shadow-sm);
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn:active { transform: translateY(0); }
+        .btn i { margin-right: 0.5rem; font-size: 0.9em; }
+        .btn.btn-primary { background-color: var(--color-primary); color: var(--color-white); }
+        .btn.btn-primary:hover { background-color: var(--color-primary-hover); }
+        .btn.btn-secondary { background-color: var(--color-secondary); color: var(--color-white); }
+        .btn.btn-secondary:hover { background-color: var(--color-secondary-hover); }
+        .btn.btn-accent { background-color: var(--color-accent); color: var(--color-white); }
+        .btn.btn-accent:hover { background-color: var(--color-accent-hover); }
+        .btn.btn-outline {
+            background-color: transparent;
+            border: 2px solid var(--color-primary);
+            color: var(--color-primary);
+        }
+        .btn.btn-outline:hover { background-color: rgba(5, 150, 105, 0.1); } /* Primary with alpha */
+        .btn.btn-outline.secondary { border-color: var(--color-secondary); color: var(--color-secondary); }
+        .btn.btn-outline.secondary:hover { background-color: rgba(79, 70, 229, 0.1); } /* Secondary with alpha */
+        /* Inverted outline for dark backgrounds */
+        .btn.btn-outline.inverted { border-color: var(--color-white); color: var(--color-white); opacity: 0.9; }
+        .btn.btn-outline.inverted:hover { background-color: rgba(255, 255, 255, 0.1); opacity: 1; }
+        /* Disabled state */
+        .btn:disabled, button:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+        .btn .spinner { width: 1em; height: 1em; border-width: 2px; display: inline-block; animation: spin 1s linear infinite; border-radius: 50%; border-top-color: transparent; border-right-color: transparent; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* --- Cards (Focus Area) --- */
+        .focus-grid { display: grid; gap: 1.5rem; }
+        .focus-item {
+            background-color: var(--color-surface);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
+            box-shadow: var(--shadow-md);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border-top: 4px solid var(--color-secondary); /* Top border accent */
+        }
+        .focus-item:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+        .focus-item .icon { font-size: 2.5rem; color: var(--color-secondary); margin-bottom: 1rem; }
+        .focus-item h3 { font-size: 1.25rem; color: var(--color-text-heading); margin-bottom: 0.5rem; }
+        .focus-item p { font-size: 0.9rem; color: var(--color-text-muted); flex-grow: 1; margin-bottom: 1rem; }
+        .focus-item .read-more-link { font-size: 0.9rem; font-weight: 500; color: var(--color-primary); margin-top: auto; }
+        .focus-item .read-more-link:hover { text-decoration: underline; }
+        .focus-item .read-more-link::after { content: ' →'; } /* Simple arrow */
+        @media (min-width: 640px) { .focus-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1024px) { .focus-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        /* --- Objectives Section --- */
+        #objectives { background-color: var(--color-surface-alt); }
+        .objectives-grid { display: grid; gap: 1rem; max-width: 900px; margin: 0 auto; }
+        .objective-item {
+            background-color: var(--color-surface);
+            padding: 1rem 1.25rem;
+            border-radius: 6px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: flex-start; /* Align icon top */
+            gap: 0.75rem;
+            border-left: 3px solid var(--color-primary); /* Left border accent */
+        }
+        .objective-item i { color: var(--color-primary); margin-top: 0.2em; font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+        .objective-item p { margin-bottom: 0; font-size: 0.95rem; }
+        @media (min-width: 768px) { .objectives-grid { grid-template-columns: repeat(2, 1fr); gap: 1.25rem; } }
+
+        /* --- Volunteer/Donate Sections --- */
+        #volunteer, #donate { color: var(--color-white); position: relative; }
+        #volunteer { background-color: var(--color-accent); } /* Accent bg */
+        #donate { background-color: var(--color-primary); } /* Primary bg */
+        html.dark #volunteer { background-color: var(--color-accent-hover); }
+        html.dark #donate { background-color: var(--color-primary-hover); }
+        #volunteer::before, #donate::before { content: ''; position: absolute; inset: 0; background-color: rgba(0, 0, 0, 0.1); } /* Consistent overlay */
+        #volunteer .container, #donate .container { position: relative; z-index: 1; }
+        #volunteer .section-title, #donate .section-title { color: var(--color-white); }
+        #volunteer .section-title.underline::after,
+        #donate .section-title.underline::after { background: var(--color-white); opacity: 0.7; }
+        #volunteer p, #donate p { color: rgba(255, 255, 255, 0.9); text-align: center; max-width: 70ch; margin-left: auto; margin-right: auto; }
+        #donate .container > div { text-align: center; } /* Center donate button */
+        #donate p:last-of-type { font-size: 0.8rem; opacity: 0.7; margin-top: 0.5rem; } /* Note style */
+
+        /* --- Forms --- */
+        .form-panel {
+            background-color: rgba(0, 0, 0, 0.15); /* Darker panel on colored bg */
+            padding: 1.5rem;
+            border-radius: 8px;
+            max-width: 700px;
+            margin: 2rem auto 0; /* Spacing above panel */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        html.dark .form-panel { background-color: rgba(0, 0, 0, 0.25); }
+        .form-panel h3 { color: var(--color-white); text-align: center; font-size: 1.4rem; margin-bottom: 1.5rem; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-label {
+            display: block;
+            margin-bottom: 0.4rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9); /* Label color on dark bg */
+        }
+        .form-label.required::after { content: '*'; color: var(--color-accent); margin-left: 0.25rem; }
+        html.dark .form-label.required::after { color: var(--color-error); } /* Use dark mode error color */
+        .form-input, .form-select, .form-textarea {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1rem; /* Input padding */
+            font-size: 1rem;
+            line-height: 1.5;
+            color: var(--color-white); /* Text color */
+            background-color: rgba(255, 255, 255, 0.08); /* Input background */
+            background-clip: padding-box;
+            border: 1px solid rgba(255, 255, 255, 0.2); /* Input border */
+            appearance: none; /* Remove default styling */
+            border-radius: 6px; /* Input border radius */
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, background-color 0.15s ease-in-out;
+        }
+        .form-input::placeholder, .form-textarea::placeholder { color: rgba(255, 255, 255, 0.5); opacity: 1; }
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            color: var(--color-white);
+            background-color: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.5);
+            outline: 0;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2); /* Focus ring */
+        }
+        .form-select {
+             /* Add arrow for select */
+             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23cccccc' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+             background-repeat: no-repeat;
+             background-position: right 1rem center;
+             background-size: 16px 12px;
+             padding-right: 3rem; /* Space for arrow */
+        }
+        .form-textarea { min-height: 100px; resize: vertical; }
+        .form-hint { font-size: 0.8rem; color: rgba(255, 255, 255, 0.7); margin-top: 0.25rem; }
+        .form-input-error, .form-select.form-input-error, .form-textarea.form-input-error {
+             border-color: var(--color-error) !important; /* Error border */
+             box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.4) !important; /* Error focus ring (red-400) */
+        }
+        .form-error-message {
+             color: var(--color-error); /* Light red for dark bg */
+             font-size: 0.8rem; font-weight: 500; margin-top: 0.3rem; display: flex; align-items: center; gap: 0.25rem;
+        }
+         html.light #volunteer .form-error-message { color: #fecaca; } /* Very light red */
+        .form-error-message i { font-size: 0.9em; }
+        /* Form grid layout */
+        .form-grid { display: grid; gap: 1.25rem; }
+        @media (min-width: 768px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
+        .form-button-container { text-align: center; margin-top: 1.5rem; }
+
+        /* --- Contact Section --- */
+        #contact { background-color: var(--color-bg); }
+        .contact-grid { display: grid; gap: 2.5rem; }
+        .contact-info, .contact-form-container {
+             background-color: var(--color-surface);
+             padding: 2rem;
+             border-radius: 8px;
+             box-shadow: var(--shadow-lg);
+             border: 1px solid var(--color-border);
+        }
+        .contact-info h3, .contact-form-container h3 {
+            color: var(--color-secondary);
+            font-size: 1.4rem;
+            margin-bottom: 1.5rem;
+        }
+        .contact-info-item { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+        .contact-info-item i {
+            color: var(--color-primary); font-size: 1.1rem; margin-top: 0.15em;
+            flex-shrink: 0; width: 20px; text-align: center;
+        }
+        .contact-info-item div h4 { font-size: 0.9rem; font-weight: 600; color: var(--color-text-heading); margin-bottom: 0.1rem; }
+        .contact-info-item div p, .contact-info-item div address { font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 0; line-height: 1.5; }
+        .contact-info-item div a { color: var(--color-secondary); }
+        .contact-info-item div a:hover { text-decoration: underline; }
+        .registration-info {
+             background-color: var(--color-surface-alt);
+             padding: 0.75rem 1rem;
+             border-radius: 4px;
+             border: 1px solid var(--color-border);
+             font-size: 0.75rem;
+             color: var(--color-text-muted);
+             margin-top: 2rem;
+             box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        /* Style form inside contact section */
+        #contact .form-label { color: var(--color-text-muted); } /* Standard label color */
+        #contact .form-input, #contact .form-select, #contact .form-textarea {
+            color: var(--color-text);
+            background-color: var(--color-surface-alt); /* Light input background */
+            border-color: var(--color-border);
+        }
+         html.dark #contact .form-input, html.dark #contact .form-select, html.dark #contact .form-textarea {
+            background-color: var(--color-surface-alt); /* Dark surface alt */
+            border-color: var(--color-border);
+            color: var(--color-text);
+        }
+         #contact .form-input::placeholder, #contact .form-textarea::placeholder { color: var(--color-text-muted); opacity: 0.7; }
+         #contact .form-input:focus, #contact .form-select:focus, #contact .form-textarea:focus {
+             background-color: var(--color-white);
+             border-color: var(--color-primary); /* Focus border */
+             box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.3); /* Focus ring - primary */
+         }
+         html.dark #contact .form-input:focus, html.dark #contact .form-select:focus, html.dark #contact .form-textarea:focus {
+            background-color: var(--color-surface);
+            border-color: var(--color-primary); /* Focus border */
+            box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.4); /* Focus ring - primary dark */
+         }
+         #contact .form-error-message { color: var(--color-error); } /* Standard error color */
+         #contact .form-input-error {
+             border-color: var(--color-error) !important;
+             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3) !important; /* Red 600 focus */
+         }
+         html.dark #contact .form-input-error {
+             border-color: var(--color-error) !important;
+             box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.4) !important; /* Red 400 focus */
+         }
+        @media (min-width: 1024px) { .contact-grid { grid-template-columns: 1fr 1fr; } }
+
+
+        /* --- Footer --- */
+        footer {
+            background-color: #111827; /* Gray 900 */
+            color: #9ca3af; /* Gray 400 */
+            padding: 3rem 0 1.5rem;
+            margin-top: 0; /* Ensure no gap above footer */
+            border-top: 4px solid var(--color-primary);
+        }
+        html.dark footer { background-color: var(--color-black); }
+        .footer-grid { display: grid; gap: 2rem; margin-bottom: 2.5rem; }
+        .footer-col h4.footer-heading {
+            font-size: 1.1rem; font-weight: 600; color: var(--color-white); margin-bottom: 1rem;
+            position: relative; padding-bottom: 0.5rem;
+        }
+        .footer-col h4.footer-heading::after {
+            content: ''; position: absolute; bottom: 0; left: 0;
+            width: 30px; height: 2px; background-color: var(--color-primary); border-radius: 1px;
+        }
+        .footer-col p, .footer-col address { font-size: 0.875rem; line-height: 1.6; margin-bottom: 0.5rem; }
+        .footer-col ul { list-style: none; padding: 0; }
+        .footer-col li { margin-bottom: 0.3rem; }
+        .footer-col a.footer-link { color: #9ca3af; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; }
+        .footer-col a.footer-link:hover { color: var(--color-white); text-decoration: underline; }
+        .footer-col a.footer-link i { opacity: 0.7; font-size: 0.9em; width: 16px; text-align: center; }
+        .footer-col address i { color: var(--color-primary); }
+        .footer-social-icons { display: flex; gap: 1rem; margin-top: 1rem; }
+        .footer-social-icons a { color: #9ca3af; font-size: 1.2rem; transition: color 0.2s ease, transform 0.2s ease; }
+        .footer-social-icons a:hover { color: var(--color-white); transform: scale(1.1); }
+        .footer-bottom {
+            text-align: center; font-size: 0.8rem; color: #6b7280; /* Gray 500 */
+            padding-top: 1.5rem; border-top: 1px solid #374151; /* Gray 700 */
+        }
+        html.dark .footer-bottom { border-top-color: #4b5563; } /* Gray 600 */
+        .footer-bottom a { color: #9ca3af; }
+        .footer-bottom a:hover { color: var(--color-white); }
+        @media (min-width: 768px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1024px) { .footer-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        /* --- Modal --- */
+        #bank-details-modal {
+            position: fixed; inset: 0; z-index: 200;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: none; /* Hidden by default */
+            align-items: center; justify-content: center;
+            padding: 1rem;
+             backdrop-filter: blur(4px);
+             opacity: 0; transition: opacity 0.3s ease;
+        }
+        #bank-details-modal.visible { display: flex; opacity: 1; }
+        .modal-box {
+            background-color: var(--color-surface);
+            color: var(--color-text); /* Ensure text color contrast */
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow-xl);
+            width: 100%;
+            max-width: 500px; /* Modal max width */
+            position: relative;
+             transform: scale(0.95);
+             opacity: 0;
+             transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        #bank-details-modal.visible .modal-box { transform: scale(1); opacity: 1; }
+        .modal-box h3 { color: var(--color-primary); font-size: 1.4rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--color-border); }
+        .modal-box p { font-size: 0.95rem; margin-bottom: 1rem; color: var(--color-text-muted); }
+        .modal-content-box {
+            background-color: var(--color-surface-alt);
+            padding: 1rem; border-radius: 6px; border: 1px solid var(--color-border);
+            margin: 1rem 0; font-size: 0.9rem;
+        }
+        .modal-content-box p { color: var(--color-text); margin-bottom: 0.5rem; line-height: 1.4; }
+        .modal-content-box p strong { font-weight: 600; color: var(--color-text-heading); }
+        .modal-footer-note { font-size: 0.8rem; text-align: center; color: var(--color-text-muted); margin-top: 1.5rem; font-style: italic; }
+        .close-button {
+            position: absolute; top: 0.75rem; right: 0.75rem;
+            background: none; border: none; cursor: pointer;
+            font-size: 1.5rem; color: var(--color-text-muted); line-height: 1;
+            padding: 0.25rem; border-radius: 50%;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+        .close-button:hover { color: var(--color-accent); background-color: rgba(0,0,0,0.05); }
+        html.dark .close-button:hover { background-color: rgba(255,255,255,0.1); }
+
+        /* --- Back to Top Button --- */
+        #back-to-top {
+            position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 50;
+            background-color: var(--color-primary); color: var(--color-white);
+            width: 40px; height: 40px; border-radius: 50%;
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; box-shadow: var(--shadow-lg);
+            opacity: 0; visibility: hidden;
+            transform: translateY(10px);
+            transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease, background-color 0.2s ease;
+        }
+        #back-to-top.visible { opacity: 1; visibility: visible; transform: translateY(0); }
+        #back-to-top:hover { background-color: var(--color-primary-hover); }
+
+        /* --- Form Status Messages --- */
+        .form-message {
+             padding: 1rem 1.5rem; margin-bottom: 1.5rem; border-radius: 6px;
+             border: 1px solid transparent; display: block;
+             font-size: 0.95rem; line-height: 1.5;
+             opacity: 0; transform: translateY(10px);
+             animation: formMessageIn 0.5s 0.1s ease-out forwards;
+        }
+        @keyframes formMessageIn {
+             to { opacity: 1; transform: translateY(0); }
+        }
+        .form-message-success {
+             background-color: #d1fae5; border-color: #6ee7b7; color: #065f46; /* Green */
+        }
+        html.dark .form-message-success {
+             background-color: rgba(16, 185, 129, 0.2); border-color: var(--color-success); color: #a7f3d0;
+        }
+        .form-message-error {
+             background-color: #fee2e2; border-color: #fca5a5; color: #991b1b; /* Red */
+        }
+         html.dark .form-message-error {
+            background-color: rgba(239, 68, 68, 0.2); border-color: var(--color-error); color: #fecaca;
+        }
+        .form-message-title { display: block; font-weight: 600; margin-bottom: 0.25rem; font-size: 1.05em; }
+        .form-message-title i { margin-right: 0.5rem; font-size: 1.1em; vertical-align: middle; }
+        .form-message-text { display: block; }
+
+        /* --- Animations on Scroll --- */
+        .animate-on-scroll { opacity: 0; transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
+        .animate-on-scroll.fade-in-up { transform: translateY(20px); }
+        .animate-on-scroll.fade-in-left { transform: translateX(-30px); }
+        .animate-on-scroll.fade-in-right { transform: translateX(30px); }
+        .animate-on-scroll.is-visible { opacity: 1; transform: translate(0, 0); }
+
+        /* Honeypot */
+        .honeypot-field { position: absolute !important; left: -9999px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; opacity: 0 !important; }
+
     </style>
+
     <!-- Schema.org JSON-LD -->
     <script type="application/ld+json">
     {
-      "@context": "https://schema.org", "@type": "NGO", "name": "PAHAL NGO", /* ... rest of schema ... */
-      "url": "https://your-pahal-domain.com/", "logo": "https://your-pahal-domain.com/icon.webp",
-      "description": "PAHAL is a voluntary youth organization in Jalandhar dedicated to holistic personality development, community service, and fostering positive change in health, education, environment, and communication.",
-      "address": {"@type": "PostalAddress", "streetAddress": "36 New Vivekanand Park, Maqsudan", "addressLocality": "Jalandhar", "addressRegion": "Punjab", "postalCode": "144008", "addressCountry": "IN" },
-      "contactPoint": [ /* ... contact points ... */ ], "sameAs": [ /* ... social links ... */ ]
+      "@context": "https://schema.org", "@type": "NGO", "name": "PAHAL NGO", "alternateName": "PAHAL Jalandhar",
+      "url": "https://your-pahal-domain.com/", <!-- CHANGE -->
+      "logo": "https://your-pahal-domain.com/icon.svg", <!-- CHANGE -->
+      "description": "<?= htmlspecialchars($page_description) ?>",
+      "address": { "@type": "PostalAddress", "streetAddress": "36 New Vivekanand Park, Maqsudan", "addressLocality": "Jalandhar", "addressRegion": "Punjab", "postalCode": "144008", "addressCountry": "IN" },
+      "contactPoint": [ { "@type": "ContactPoint", "telephone": "+91-6239366376", "contactType": "General Inquiry", "name": "Mr Bipan Suman" }, { "@type": "ContactPoint", "email": "<?= RECIPIENT_EMAIL_CONTACT ?>", "contactType": "General Inquiry" } ],
+      "potentialAction": [ { "@type": "DonateAction", "name": "Donate to PAHAL", "target": "https://your-pahal-domain.com/#donate" }, { "@type": "RegisterAction", "name": "Volunteer with PAHAL", "target": "https://your-pahal-domain.com/#volunteer" } ]
     }
     </script>
 </head>
-<body class="bg-theme-bg text-theme-text font-sans">
+<body> <!-- No dark class needed here, applied on <html> -->
 
 <!-- Header -->
-<header id="main-header" class="py-2 md:py-0">
-    <div class="container mx-auto flex flex-wrap items-center justify-between">
-         <div class="logo flex-shrink-0 py-2">
-             <a href="#hero" aria-label="PAHAL NGO Home" class="text-3xl md:text-4xl font-black text-theme-accent dark:text-red-400 font-heading leading-none flex items-center transition-opacity hover:opacity-80">
-                <img src="icon.webp" alt="" class="h-9 w-9 mr-2 inline object-contain animate-pulse-slow" aria-hidden="true"> <!-- Subtle pulse on logo -->
-                PAHAL
-             </a>
-             <p class="text-xs text-theme-text-muted italic ml-11 -mt-1.5 hidden sm:block">An Endeavour for a Better Tomorrow</p>
-        </div>
-        <button id="mobile-menu-toggle" aria-label="Toggle Menu" aria-expanded="false" aria-controls="navbar" class="menu-toggle lg:hidden p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-theme-primary rounded">
-            <span class="sr-only">Open menu</span> <span></span> <span></span> <span></span>
-        </button>
-        <nav id="navbar" aria-label="Main Navigation" class="navbar-container"> <!-- Use class for JS targeting -->
-            <ul class="flex flex-col lg:flex-row lg:items-center lg:space-x-5 xl:space-x-6 py-4 lg:py-0 px-4 lg:px-0">
-                <li><a href="#hero" class="nav-link active group">Home</a></li>
-                <li><a href="#profile" class="nav-link group">Profile</a></li>
-                <li><a href="#objectives" class="nav-link group">Objectives</a></li>
-                <li><a href="#areas-focus" class="nav-link group">Focus Areas</a></li>
-                <li><a href="#news-section" class="nav-link group">News</a></li>
-                <li><a href="#volunteer-section" class="nav-link group">Get Involved</a></li>
-                <li><a href="blood-donation.php" class="nav-link group">Blood Drive</a></li>
-                <li><a href="e-waste.php" class="nav-link group">E-Waste</a></li>
-                <li><a href="#contact" class="nav-link group">Contact</a></li>
-                <li> <!-- Theme Toggle Button -->
-                     <button id="theme-toggle" type="button" title="Toggle theme" class="btn-icon text-theme-text-muted hover:text-theme-primary hover:bg-theme-primary/10 dark:hover:bg-theme-primary/20 transition-colors duration-200 ml-2 p-2.5">
-                         <i class="fas fa-moon text-lg block dark:hidden" id="theme-toggle-dark-icon"></i>
-                         <i class="fas fa-sun text-lg hidden dark:block" id="theme-toggle-light-icon"></i>
-                     </button>
+<header id="main-header">
+   <div class="container">
+        <div class="logo">
+           <a href="#hero">
+             <img src="icon.webp" alt="PAHAL Icon"> <!-- Adjust path if needed -->
+             <span>PAHAL</span>
+            </a>
+       </div>
+
+       <!-- Mobile Menu Button -->
+       <button id="menu-toggle-btn" aria-label="Toggle Menu" aria-expanded="false">
+           <span></span><span></span><span></span>
+       </button>
+
+       <!-- Navigation -->
+       <nav id="navbar" aria-label="Main Navigation">
+            <ul>
+                <li><a href="#hero" class="nav-link active">Home</a></li>
+                <li><a href="#focus" class="nav-link">Focus Areas</a></li>
+                <li><a href="#objectives" class="nav-link">Objectives</a></li>
+                <li><a href="#volunteer" class="nav-link">Volunteer</a></li>
+                <li><a href="#donate" class="nav-link">Donate</a></li>
+                <li><a href="#contact" class="nav-link">Contact</a></li>
+                <li><a href="blood-donation.php" class="nav-link">Blood Donation</a></li>
+                <li><a href="e-waste.php" class="nav-link">E-Waste</a></li>
+                <li>
+                    <button id="dark-mode-toggle" aria-label="Toggle Dark Mode">
+                        <i class="fas fa-moon" id="dark-mode-icon"></i>
+                    </button>
                 </li>
             </ul>
-        </nav>
-    </div>
+       </nav>
+   </div>
 </header>
 
 <main>
+
     <!-- Hero Section -->
-    <section id="hero" class="relative">
-        <!-- Background overlay removed, using animated gradient directly -->
-        <div class="container mx-auto relative z-10 flex flex-col-reverse lg:flex-row items-center justify-between gap-10 text-center lg:text-left">
-             <div class="hero-text flex-1 order-2 lg:order-1 flex flex-col items-center lg:items-start justify-center text-center lg:text-left animate-on-scroll fade-in-left">
-              <h1 class="font-heading !text-white"> <!-- Ensure white text -->
-                 Empowering Communities,<br> Inspiring Change
-              </h1>
-              <p class="text-lg lg:text-xl my-6 max-w-xl mx-auto lg:mx-0 text-gray-100 drop-shadow-md">
-                Join PAHAL, a youth-driven NGO in Jalandhar, committed to holistic development and tangible social impact through dedicated action in health, education, environment, and communication.
-              </p>
-              <div class="mt-8 flex flex-wrap justify-center lg:justify-start gap-4">
-                <a href="#profile" class="btn btn-secondary text-base md:text-lg shadow-lg !bg-white !text-theme-secondary hover:!bg-gray-100"><i class="fas fa-info-circle"></i>Discover More</a>
-                 <a href="#volunteer-section" class="btn btn-primary text-base md:text-lg shadow-lg"><i class="fas fa-hands-helping"></i>Get Involved</a>
-              </div>
+    <section id="hero">
+        <div class="container hero-content">
+            <div class="hero-text animate-on-scroll fade-in-left">
+                <h1>PAHAL: Igniting Change, Empowering Youth</h1>
+                <p>A volunteer-driven NGO in Jalandhar, dedicated to holistic development through impactful initiatives in health, education, environment, and skills.</p>
+                <div class="hero-actions">
+                    <a href="#volunteer" class="btn btn-secondary"><i class="fas fa-hands-helping"></i> Join Us</a>
+                    <a href="#donate" class="btn btn-outline inverted"><i class="fas fa-donate"></i> Support Us</a>
+                </div>
             </div>
-            <div class="hero-logo order-1 lg:order-2 flex-shrink-0 w-[180px] lg:w-auto animate-on-scroll fade-in-right delay-200">
-                 <img src="icon.webp" alt="PAHAL NGO Large Logo Icon" class="mx-auto w-36 h-36 md:w-48 md:h-48 lg:w-60 lg:h-60 rounded-full shadow-2xl bg-white/25 p-3 backdrop-blur-sm"> <!-- Increased padding/bg alpha -->
+            <div class="hero-logo animate-on-scroll fade-in-right delay-200">
+                <img src="icon.webp" alt="PAHAL NGO Logo"> <!-- Adjust path if needed -->
             </div>
         </div>
-        <div class="hero-scroll-indicator">
-             <a href="#profile" aria-label="Scroll down"><i class="fas fa-chevron-down"></i></a>
-        </div>
+        <!-- Scroll Indicator Removed for simplicity -->
     </section>
 
-    <!-- Profile Section -->
-    <section id="profile" class="section-padding bg-theme-surface-alt dark:bg-theme-surface/50">
-        <div class="container mx-auto animate-on-scroll fade-in-up">
-             <h2 class="section-title section-title-underline">Our Profile & Vision</h2>
-             <div class="grid md:grid-cols-5 gap-12 items-center mt-16">
-                 <div class="md:col-span-3 profile-text">
-                    <h3 class="text-2xl mb-4 !text-theme-text-heading">Who We Are</h3>
-                    <p class="mb-6 text-theme-text-muted text-lg">'PAHAL' (Initiative) stands as a testament to collective action... driven by a singular vision: to catalyze perceptible, positive transformation within our social fabric.</p>
-                    <blockquote><p>"PAHAL is an endeavour for a Better Tomorrow"</p></blockquote>
-                    <h3 class="text-2xl mb-4 mt-10 !text-theme-text-heading">Our Core Vision</h3>
-                    <p class="text-theme-text-muted text-lg">We aim to cultivate <strong class="text-theme-primary font-medium">Holistic Personality Development</strong>... thereby building a more compassionate and equitable world.</p>
-                 </div>
-                 <div class="md:col-span-2 profile-image animate-on-scroll fade-in-right delay-200">
-                    <img src="https://via.placeholder.com/500x600.png/059669/f9fafb?text=PAHAL+Vision" alt="PAHAL NGO team vision" class="rounded-lg shadow-xl mx-auto w-full object-cover h-full max-h-[500px] border-4 border-white dark:border-theme-surface">
+    <!-- Focus Areas Section -->
+    <section id="focus" class="section-padding"> <!-- Removed background class, handled by body/section default -->
+        <div class="container">
+            <h2 class="section-title underline">Our Core Focus Areas</h2>
+            <div class="focus-grid">
+                <?php foreach ($focus_areas as $index => $area): ?>
+                <div class="focus-item animate-on-scroll fade-in-up delay-<?= $index * 100 ?>">
+                    <i class="<?= htmlspecialchars($area['icon']) ?> icon"></i>
+                    <h3><?= htmlspecialchars($area['title']) ?></h3>
+                    <p><?= htmlspecialchars($area['description']) ?></p>
+                    <?php if (!empty($area['link']) && $area['link'] !== '#focus'): ?>
+                        <a href="<?= htmlspecialchars($area['link']) ?>" class="read-more-link">Learn More</a>
+                    <?php endif; ?>
                 </div>
-             </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </section>
 
     <!-- Objectives Section -->
-     <section id="objectives" class="section-padding bg-gradient-to-b from-theme-bg to-theme-surface-alt dark:from-theme-bg dark:to-theme-surface/30">
-        <div class="container mx-auto">
-             <h2 class="section-title section-title-underline">Our Guiding Objectives</h2>
-             <div class="max-w-6xl mx-auto grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-16">
-                 <div class="objective-item group animate-on-scroll fade-in-up"><i class="fas fa-users"></i><p>To collaborate genuinely <strong>with and among the people</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up delay-100"><i class="fas fa-people-carry"></i><p>To engage in <strong>creative & constructive social action</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up delay-200"><i class="fas fa-lightbulb"></i><p>To enhance knowledge of <strong>self & community realities</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up delay-300"><i class="fas fa-seedling"></i><p>To apply scholarship for <strong>mitigating social problems</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up delay-400"><i class="fas fa-tools"></i><p>To gain and apply skills in <strong>humanity development</strong>.</p></div>
-                 <div class="objective-item group animate-on-scroll fade-in-up delay-500"><i class="fas fa-recycle"></i><p>To promote <strong>sustainable practices</strong> & awareness.</p></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Areas of Focus Section -->
-    <section id="areas-focus" class="section-padding bg-theme-surface-alt dark:bg-theme-surface/50">
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Our Key Focus Areas</h2>
-             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-16">
-                 <!-- Health -->
-                 <a href="blood-donation.php" title="Health Initiatives" class="focus-item group animate-on-scroll fade-in-up card-hover">
-                     <span class="icon"><i class="fas fa-heart-pulse"></i></span> <h3>Health & Wellness</h3>
-                     <p>Prioritizing community well-being via awareness campaigns, blood drives, and promoting healthy lifestyles.</p>
-                     <span class="read-more-link">Blood Donation Program</span>
-                 </a>
-                 <!-- Education -->
-                 <div class="focus-item group animate-on-scroll fade-in-up delay-100 card-hover">
-                     <span class="icon"><i class="fas fa-user-graduate"></i></span> <h3>Education & Skilling</h3>
-                     <p>Empowering youth by fostering ethical foundations, essential life skills, and professional readiness.</p>
-                     <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span>
-                  </div>
-                 <!-- Environment -->
-                 <a href="e-waste.php" title="E-waste Recycling" class="focus-item group animate-on-scroll fade-in-up delay-200 card-hover">
-                      <span class="icon"><i class="fas fa-leaf"></i></span> <h3>Environment</h3>
-                      <p>Championing stewardship through plantation drives, waste management, and e-waste recycling.</p>
-                      <span class="read-more-link">E-Waste Program</span>
-                 </a>
-                 <!-- Communication -->
-                 <div class="focus-item group animate-on-scroll fade-in-up delay-300 card-hover">
-                     <span class="icon"><i class="fas fa-comments"></i></span> <h3>Communication Skills</h3>
-                     <p>Enhancing verbal, non-verbal, and presentation abilities in youth via interactive programs.</p>
-                      <span class="read-more-link opacity-50 cursor-not-allowed">Details Soon</span>
-                 </div>
-             </div>
-        </div>
-    </section>
-
-    <!-- How to Join / Get Involved Section -->
-     <section id="volunteer-section" class="section-padding animated-gradient-secondary text-white relative">
-        <div class="absolute inset-0 bg-black/30 mix-blend-multiply z-0"></div> <!-- Darkening Overlay -->
-        <div class="container mx-auto relative z-10">
-             <h2 class="section-title !text-white section-title-underline after:!bg-theme-accent">Join the PAHAL Movement</h2>
-            <div class="grid lg:grid-cols-2 gap-12 items-center mt-16">
-                <!-- Info Text -->
-                <div class="text-center lg:text-left animate-on-scroll fade-in-left">
-                    <h3 class="text-3xl lg:text-4xl font-bold mb-4 text-white leading-snug drop-shadow-md">Make a Difference, Volunteer With Us</h3>
-                    <p class="text-gray-100 dark:text-gray-200 max-w-3xl mx-auto lg:mx-0 mb-6 text-lg leading-relaxed drop-shadow-sm">PAHAL welcomes passionate individuals... Your time, skills, and dedication are invaluable assets.</p>
-                    <p class="text-gray-100 dark:text-gray-200 max-w-3xl mx-auto lg:mx-0 mb-8 text-lg leading-relaxed drop-shadow-sm">Volunteering offers a rewarding experience... Express your interest below!</p>
-                     <div class="mt-10 flex flex-wrap justify-center lg:justify-start gap-4">
-                         <a href="#contact" class="btn btn-outline !border-white !text-white hover:!bg-white hover:!text-theme-secondary"><i class="fas fa-phone-alt"></i>Contact Directly</a>
-                         <!-- <a href="volunteer-opportunities.php" class="btn !bg-white !text-theme-secondary hover:!bg-gray-100"><i class="fas fa-list-alt"></i>View Opportunities</a> -->
-                     </div>
-                 </div>
-                 <!-- Volunteer Sign-up Form -->
-                 <div class="panel !bg-black/30 dark:!bg-black/40 !border-white/20 animate-on-scroll fade-in-right delay-100">
-                     <h3 class="text-2xl mb-6 text-white font-semibold text-center">Register Your Volunteer Interest</h3>
-                     <?= get_form_status_html('volunteer_form') ?>
-                    <form id="volunteer-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#volunteer-section" method="POST" class="space-y-5">
-                        <!-- Hidden Fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>"><input type="hidden" name="form_id" value="volunteer_form"><div class="honeypot-field" aria-hidden="true"><label for="website_url_volunteer">Keep Blank</label><input type="text" id="website_url_volunteer" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off"></div>
-                        <!-- Form Fields (using updated classes) -->
-                        <div><label for="volunteer_name" class="form-label !text-gray-200 required">Full Name</label><input type="text" id="volunteer_name" name="volunteer_name" required value="<?= $volunteer_form_name_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_name') ?>" placeholder="Your Name" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_name') ?>><?= get_field_error_html('volunteer_form', 'volunteer_name') ?></div>
-                        <div class="grid md:grid-cols-2 gap-5">
-                            <div><label for="volunteer_email" class="form-label !text-gray-200">Email</label><input type="email" id="volunteer_email" name="volunteer_email" value="<?= $volunteer_form_email_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_email') ?>" placeholder="your.email@example.com" <?= get_aria_describedby('volunteer_form', 'volunteer_email') ?>><?= get_field_error_html('volunteer_form', 'volunteer_email') ?></div>
-                            <div><label for="volunteer_phone" class="form-label !text-gray-200">Phone</label><input type="tel" id="volunteer_phone" name="volunteer_phone" value="<?= $volunteer_form_phone_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_phone') ?>" placeholder="Your Phone" <?= get_aria_describedby('volunteer_form', 'volunteer_phone') ?>><?= get_field_error_html('volunteer_form', 'volunteer_phone') ?></div>
-                        </div>
-                        <p class="text-xs text-gray-300 -mt-3" id="volunteer_contact_note">Provide Email or Phone.</p>
-                        <div><label for="volunteer_area" class="form-label !text-gray-200 required">Area of Interest</label><select id="volunteer_area" name="volunteer_area" required class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_area') ?>" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_area') ?>><option value="" disabled <?= empty($volunteer_form_area_value) ? 'selected' : ''?>>-- Select --</option><option value="Health" <?= $volunteer_form_area_value == 'Health' ? 'selected' : ''?>>Health</option><!-- Other options --><option value="Other" <?= $volunteer_form_area_value == 'Other' ? 'selected' : ''?>>Other</option></select><?= get_field_error_html('volunteer_form', 'volunteer_area') ?></div>
-                        <div><label for="volunteer_availability" class="form-label !text-gray-200 required">Availability</label><input type="text" id="volunteer_availability" name="volunteer_availability" required value="<?= $volunteer_form_availability_value ?>" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_availability') ?>" placeholder="e.g., Weekends, Evenings" aria-required="true" <?= get_aria_describedby('volunteer_form', 'volunteer_availability') ?>><?= get_field_error_html('volunteer_form', 'volunteer_availability') ?></div>
-                        <div><label for="volunteer_message" class="form-label !text-gray-200">Message (Optional)</label><textarea id="volunteer_message" name="volunteer_message" rows="3" class="form-input form-input-inverted <?= get_field_error_class('volunteer_form', 'volunteer_message') ?>" placeholder="Your motivation or skills..." <?= get_aria_describedby('volunteer_form', 'volunteer_message') ?>><?= $volunteer_form_message_value ?></textarea><?= get_field_error_html('volunteer_form', 'volunteer_message') ?></div>
-                        <button type="submit" class="btn btn-accent w-full sm:w-auto"><span class="spinner hidden mr-2"></span><span class="button-text flex items-center"><i class="fas fa-paper-plane"></i>Submit Interest</span></button>
-                    </form>
-                 </div>
-            </div>
-        </div>
-    </section>
-
-
-    <!-- News & Events Section -->
-    <section id="news-section" class="section-padding bg-theme-surface-alt dark:bg-theme-surface/50">
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Latest News & Events</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-16">
-                <?php if (!empty($news_items)): ?>
-                    <?php foreach ($news_items as $index => $item): ?>
-                    <div class="news-card group animate-on-scroll fade-in-up delay-<?= ($index * 100) ?> card-hover">
-                        <a href="<?= htmlspecialchars($item['link']) ?>" class="block aspect-[16/10] overflow-hidden rounded-t-xl" title="Read more">
-                             <img src="<?= htmlspecialchars($item['image']) ?>" alt="..." loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
-                        </a>
-                        <div class="news-content">
-                             <span class="date"><i class="far fa-calendar-alt mr-1 opacity-70"></i><?= date('M j, Y', strtotime($item['date'])) ?></span>
-                             <h4 class="my-2"><a href="<?= htmlspecialchars($item['link']) ?>" class="group-hover:!text-theme-secondary"><?= htmlspecialchars($item['title']) ?></a></h4>
-                             <p><?= htmlspecialchars($item['excerpt']) ?></p>
-                              <div class="read-more-action">
-                                  <a href="<?= htmlspecialchars($item['link']) ?>" class="btn btn-outline secondary !text-sm !py-1 !px-3">Read More <i class="fas fa-arrow-right text-xs ml-1 group-hover:translate-x-1 transition-transform"></i></a>
-                              </div>
-                         </div>
-                    </div>
-                    <?php endforeach; ?>
-                 <?php else: ?>
-                     <p class="text-center text-theme-text-muted md:col-span-2 lg:col-span-3">No recent news.</p>
-                 <?php endif; ?>
-            </div>
-            <div class="text-center mt-12"><a href="/news-archive.php" class="btn btn-secondary"><i class="far fa-newspaper"></i>View News Archive</a></div>
-        </div>
-    </section>
-
-    <!-- Gallery Section -->
-    <section id="gallery-section" class="section-padding">
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Glimpses of Our Work</h2>
-            <?php if (!empty($gallery_images)): ?>
-                <div class="gallery grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-16">
-                    <?php foreach ($gallery_images as $index => $image): ?>
-                    <a href="<?= htmlspecialchars($image['src']) ?>" class="gallery-item block aspect-video rounded-lg overflow-hidden shadow-md group animate-on-scroll fade-in-up delay-<?= ($index * 50) ?> transition-all duration-300 hover:shadow-xl hover:scale-105">
-                         <img src="<?= htmlspecialchars($image['src']) ?>" alt="<?= htmlspecialchars($image['alt']) ?>" loading="lazy" class="w-full h-full object-cover transition-all duration-300 ease-in-out group-hover:scale-105 group-hover:brightness-110 filter group-hover:contrast-110">
-                     </a>
-                    <?php endforeach; ?>
+    <section id="objectives" class="section-padding">
+        <div class="container">
+            <h2 class="section-title underline">Our Objectives</h2>
+            <div class="objectives-grid">
+                <?php foreach ($objectives as $index => $objective): ?>
+                <div class="objective-item animate-on-scroll fade-in-up delay-<?= $index * 50 ?>">
+                    <i class="fas fa-check"></i>
+                    <p><?= htmlspecialchars($objective) ?></p>
                 </div>
-                <p class="text-center mt-8 text-theme-text-muted italic">Click images to view larger.</p>
-            <?php else: ?>
-                 <p class="text-center text-theme-text-muted">Gallery coming soon.</p>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <!-- Associates Section -->
-    <section id="associates" class="section-padding bg-theme-surface-alt dark:bg-theme-surface/50">
-        <div class="container mx-auto">
-            <h2 class="section-title section-title-underline">Our Valued Associates & Partners</h2>
-             <p class="text-center max-w-3xl mx-auto text-lg text-theme-text-muted mb-16">Collaboration amplifies impact. We value the support of these esteemed organizations.</p>
-             <div class="flex flex-wrap justify-center items-center gap-x-10 md:gap-x-16 gap-y-10"> <!-- Increased gap -->
-                <?php foreach ($associates as $index => $associate): ?>
-                 <div class="associate-logo text-center group transform transition duration-300 hover:scale-110 animate-on-scroll fade-in-up delay-<?= ($index * 50) ?>">
-                    <img src="<?= htmlspecialchars($associate['img']) ?>" alt="<?= htmlspecialchars($associate['name']) ?> Logo" class="max-h-16 md:max-h-20 w-auto mx-auto mb-3 filter grayscale group-hover:grayscale-0 transition duration-300 ease-in-out opacity-75 group-hover:opacity-100">
-                    <p class="text-xs font-medium text-theme-text-muted group-hover:text-theme-primary transition-colors"><?= htmlspecialchars($associate['name']) ?></p>
-                 </div>
-                 <?php endforeach; ?>
+                <?php endforeach; ?>
             </div>
         </div>
     </section>
 
-     <!-- Donation CTA Section -->
-     <section id="donate-section" class="section-padding text-center relative overflow-hidden animated-gradient-primary">
-         <div class="absolute inset-0 bg-black/35 mix-blend-multiply z-0"></div>
-         <div class="container mx-auto relative z-10">
-             <i class="fas fa-donate text-4xl text-white bg-theme-accent p-4 rounded-full shadow-lg mb-6 inline-block animate-bounce-subtle"></i>
-             <h2 class="section-title !text-white section-title-underline after:!bg-white/70"><span class="drop-shadow-md">Support Our Initiatives</span></h2>
-            <p class="text-gray-100 dark:text-gray-200 max-w-3xl mx-auto mb-8 text-lg leading-relaxed drop-shadow">Your contribution fuels our mission in health, education, and environment within Jalandhar.</p>
-            <p class="text-gray-200 dark:text-gray-300 bg-black/25 dark:bg-black/50 inline-block px-4 py-1.5 rounded-full text-sm font-semibold mb-10 backdrop-blur-sm border border-white/20">Donations Tax Exempt under Sec 80G.</p>
-            <div class="space-y-4 sm:space-y-0 sm:space-x-6 flex flex-wrap justify-center items-center gap-4">
-                 <a href="#contact" class="btn btn-secondary !bg-white !text-theme-primary hover:!bg-gray-100 shadow-xl"><i class="fas fa-info-circle"></i> Donation Inquiries</a>
-                 <button type="button" class="btn btn-outline !border-white !text-white hover:!bg-white hover:!text-theme-primary shadow-xl" data-modal-target="bank-details-modal"><i class="fas fa-university"></i>View Bank Details</button>
+    <!-- Volunteer Section -->
+    <section id="volunteer" class="section-padding">
+        <div class="container">
+            <h2 class="section-title underline">Become a Volunteer</h2>
+            <p>Join our passionate team and make a difference. Fill out the form below!</p>
+
+            <div class="form-panel animate-on-scroll fade-in-up">
+                <h3>Volunteer Application</h3>
+                <?= get_form_status_html('volunteer_form') ?>
+
+                <form id="volunteer_form_element" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#volunteer" method="POST">
+                    <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                    <input type="hidden" name="form_id" value="volunteer_form">
+                    <div class="honeypot-field" aria-hidden="true">
+                        <label for="website_url_volunteer" class="sr-only">Keep This Blank</label>
+                        <input type="text" id="website_url_volunteer" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="volunteer_name" class="form-label required">Name</label>
+                            <input type="text" id="volunteer_name" name="volunteer_name" required value="<?= $volunteer_form_name_value ?>" class="form-input <?= get_field_error_class('volunteer_form', 'volunteer_name') ?>" placeholder="Your Full Name" <?= get_aria_describedby('volunteer_form', 'volunteer_name') ?>>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_name') ?>
+                        </div>
+                         <div class="form-group">
+                            <label for="volunteer_area" class="form-label required">Area of Interest</label>
+                            <select id="volunteer_area" name="volunteer_area" required class="form-select <?= get_field_error_class('volunteer_form', 'volunteer_area') ?>" <?= get_aria_describedby('volunteer_form', 'volunteer_area') ?>>
+                                <option value="" disabled <?= empty($volunteer_form_area_value) ? 'selected' : '' ?>>-- Select --</option>
+                                <option value="Health Camps" <?= ($volunteer_form_area_value === 'Health Camps') ? 'selected' : '' ?>>Health Camps</option>
+                                <option value="Blood Donation Drives" <?= ($volunteer_form_area_value === 'Blood Donation Drives') ? 'selected' : '' ?>>Blood Donation Drives</option>
+                                <option value="Education Support" <?= ($volunteer_form_area_value === 'Education Support') ? 'selected' : '' ?>>Education Support</option>
+                                <option value="Environmental Projects" <?= ($volunteer_form_area_value === 'Environmental Projects') ? 'selected' : '' ?>>Environmental Projects</option>
+                                <option value="Skill Development" <?= ($volunteer_form_area_value === 'Skill Development') ? 'selected' : '' ?>>Skill Development</option>
+                                <option value="Event Management" <?= ($volunteer_form_area_value === 'Event Management') ? 'selected' : '' ?>>Event Management</option>
+                                <option value="General Support" <?= ($volunteer_form_area_value === 'General Support') ? 'selected' : '' ?>>General Support</option>
+                            </select>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_area') ?>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="volunteer_email" class="form-label">Email</label>
+                            <input type="email" id="volunteer_email" name="volunteer_email" value="<?= $volunteer_form_email_value ?>" class="form-input <?= get_field_error_class('volunteer_form', 'volunteer_email') ?>" placeholder="you@example.com" <?= get_aria_describedby('volunteer_form', 'volunteer_email') ?>>
+                            <p class="form-hint">Required if phone not provided.</p>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_email') ?>
+                        </div>
+                        <div class="form-group">
+                            <label for="volunteer_phone" class="form-label">Phone</label>
+                            <input type="tel" id="volunteer_phone" name="volunteer_phone" value="<?= $volunteer_form_phone_value ?>" class="form-input <?= get_field_error_class('volunteer_form', 'volunteer_phone') ?>" placeholder="e.g., 9876543210" <?= get_aria_describedby('volunteer_form', 'volunteer_phone') ?>>
+                            <p class="form-hint">Required if email not provided.</p>
+                            <?= get_field_error_html('volunteer_form', 'volunteer_phone') ?>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="volunteer_availability" class="form-label required">Availability</label>
+                        <input type="text" id="volunteer_availability" name="volunteer_availability" required value="<?= $volunteer_form_availability_value ?>" class="form-input <?= get_field_error_class('volunteer_form', 'volunteer_availability') ?>" placeholder="e.g., Weekends, Evenings" <?= get_aria_describedby('volunteer_form', 'volunteer_availability') ?>>
+                        <?= get_field_error_html('volunteer_form', 'volunteer_availability') ?>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="volunteer_message" class="form-label">Message <span style="font-size: 0.8em; opacity: 0.8;">(Optional)</span></label>
+                        <textarea id="volunteer_message" name="volunteer_message" rows="3" class="form-textarea <?= get_field_error_class('volunteer_form', 'volunteer_message') ?>" placeholder="Anything else you'd like to share?" <?= get_aria_describedby('volunteer_form', 'volunteer_message') ?>><?= $volunteer_form_message_value ?></textarea>
+                        <?= get_field_error_html('volunteer_form', 'volunteer_message') ?>
+                    </div>
+
+                    <div class="form-button-container">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i><span>Submit Application</span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
-     </section>
+    </section>
+
+    <!-- Donate Section -->
+    <section id="donate" class="section-padding">
+        <div class="container">
+             <div class="animate-on-scroll fade-in-up">
+                <h2 class="section-title underline">Support Our Cause</h2>
+                <p>Your contribution empowers us to continue our work. Every donation makes a significant impact.</p>
+                <button id="donate-button" class="btn btn-accent"><i class="fas fa-hand-holding-usd"></i> Donate Now</button>
+                <p>Bank details for direct transfer will be shown.</p>
+            </div>
+        </div>
+    </section>
 
     <!-- Contact Section -->
-     <section id="contact" class="section-padding bg-gradient-to-b from-theme-surface-alt to-theme-bg dark:from-theme-surface/50 dark:to-theme-bg">
-        <div class="container mx-auto">
-             <h2 class="section-title section-title-underline">Connect With Us</h2>
-             <p class="text-center max-w-3xl mx-auto text-lg text-theme-text-muted mb-16">Questions, suggestions, partnerships, or just want to learn more? We're here to connect.</p>
-             <div class="grid lg:grid-cols-5 gap-10 lg:gap-16 items-start">
-                 <!-- Contact Details -->
-                 <div class="lg:col-span-2 animate-on-scroll fade-in-left">
-                     <h3 class="text-2xl mb-6 font-semibold !text-theme-text-heading">Contact Information</h3>
-                     <address class="space-y-6 text-theme-text-muted text-base mb-10">
-                        <div class="contact-info-item"><i class="fas fa-map-marker-alt"></i><div><span>Our Office:</span> 36 New Vivekanand Park, Maqsudan,<br>Jalandhar, Punjab - 144008</div></div>
-                        <div class="contact-info-item"><i class="fas fa-phone-alt"></i><div><span>Phone Lines:</span> <a href="tel:+911812672784">181-267-2784</a><br><a href="tel:+919855614230">98556-14230</a></div></div>
-                        <div class="contact-info-item"><i class="fas fa-envelope"></i><div><span>Email Us:</span> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></div></div>
-                     </address>
-                    <div class="mb-10 pt-8 border-t border-theme-border/50"><h4 class="text-lg font-semibold text-theme-secondary mb-4">Follow Our Journey</h4><div class="flex space-x-5 social-icons"><!-- Social Icons --></div></div>
-                     <div class="mb-10 pt-8 border-t border-gray-200"><h4 class="text-lg font-semibold text-neutral mb-4">Visit Us</h4><iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3406.124022090013!2d75.5963185752068!3d31.339546756899223!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x391a5b7f02a86379%3A0x4c61457c43d15b97!2s36%2C%20New%20Vivekanand%20Park%2C%20Maqsudan%2C%20Jalandhar%2C%20Punjab%20144008!5e0!3m2!1sen!2sin!4v1700223266482!5m2!1sen!2sin" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" class="rounded-lg shadow-md border border-gray-200"></iframe></div> 
-                     <div class="registration-info"><h4 class="text-sm font-semibold text-theme-primary dark:text-theme-primary mb-2">Registration</h4><!-- Reg Details --></div>
-                 </div>
+    <section id="contact" class="section-padding">
+        <div class="container">
+            <h2 class="section-title underline">Get In Touch</h2>
+            <div class="contact-grid">
+                <!-- Contact Info -->
+                <div class="contact-info animate-on-scroll fade-in-left">
+                    <h3>Contact Information</h3>
+                    <p>We'd love to hear from you! Reach out with questions or collaboration ideas.</p>
+                    <div>
+                        <div class="contact-info-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <div>
+                                <h4>Address:</h4>
+                                <address>
+                                    36 New Vivekanand Park, Maqsudan,<br>
+                                    Jalandhar, Punjab - 144008, India
+                                </address>
+                            </div>
+                        </div>
+                        <div class="contact-info-item">
+                            <i class="fas fa-phone-alt"></i>
+                            <div>
+                                <h4>Phone:</h4>
+                                <p><a href="tel:+916239366376">+91 6239366376</a></p>
+                            </div>
+                        </div>
+                        <div class="contact-info-item">
+                            <i class="fas fa-envelope"></i>
+                            <div>
+                                <h4>Email:</h4>
+                                <p><a href="mailto:<?= RECIPIENT_EMAIL_CONTACT ?>?subject=Inquiry%20via%20Website"><?= RECIPIENT_EMAIL_CONTACT ?></a></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="registration-info">
+                        Registered under Societies Registration Act (XXI of 1860). Reg No: DIC/JAL/SOCIETY/2004-2005/111
+                    </div>
+                </div>
+
                 <!-- Contact Form -->
-                <div class="lg:col-span-3 panel !bg-theme-surface dark:!bg-theme-surface !border-theme-border/50 animate-on-scroll fade-in-right delay-100">
-                    <h3 class="text-2xl mb-8 font-semibold !text-theme-text-heading text-center lg:text-left">Send Us a Message</h3>
+                <div class="contact-form-container animate-on-scroll fade-in-right delay-150">
+                    <h3 class="text-center">Send Us a Message</h3>
                     <?= get_form_status_html('contact_form') ?>
-                    <form id="contact-form-tag" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#contact" method="POST" class="space-y-6">
-                        <!-- Hidden fields -->
-                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>"><input type="hidden" name="form_id" value="contact_form"><div class="honeypot-field">...</div>
-                        <!-- Form Fields -->
-                        <div><label for="contact_name" class="form-label required">Name</label><input type="text" id="contact_name" name="name" required value="<?= $contact_form_name_value ?>" class="<?= get_field_error_class('contact_form', 'name') ?>" placeholder="e.g., Jane Doe" <?= get_aria_describedby('contact_form', 'name') ?>><?= get_field_error_html('contact_form', 'name') ?></div>
-                        <div><label for="contact_email" class="form-label required">Email</label><input type="email" id="contact_email" name="email" required value="<?= $contact_form_email_value ?>" class="<?= get_field_error_class('contact_form', 'email') ?>" placeholder="e.g., jane.doe@example.com" <?= get_aria_describedby('contact_form', 'email') ?>><?= get_field_error_html('contact_form', 'email') ?></div>
-                        <div><label for="contact_message" class="form-label required">Message</label><textarea id="contact_message" name="message" rows="5" required class="<?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your thoughts..." <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea><?= get_field_error_html('contact_form', 'message') ?></div>
-                        <button type="submit" class="btn btn-primary w-full sm:w-auto" id="contact-submit-button"><span class="button-text flex items-center"><i class="fas fa-paper-plane"></i>Send Message</span><span class="spinner hidden ml-2"></span></button>
+
+                    <form id="contact_form_element" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>#contact" method="POST">
+                        <input type="hidden" name="<?= CSRF_TOKEN_NAME ?>" value="<?= $csrf_token ?>">
+                        <input type="hidden" name="form_id" value="contact_form">
+                         <div class="honeypot-field" aria-hidden="true">
+                            <label for="website_url_contact" class="sr-only">Keep This Blank</label>
+                            <input type="text" id="website_url_contact" name="<?= HONEYPOT_FIELD_NAME ?>" tabindex="-1" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="name" class="form-label required">Name</label>
+                            <input type="text" id="name" name="name" required value="<?= $contact_form_name_value ?>" class="form-input <?= get_field_error_class('contact_form', 'name') ?>" placeholder="Your Full Name" <?= get_aria_describedby('contact_form', 'name') ?>>
+                            <?= get_field_error_html('contact_form', 'name') ?>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email" class="form-label required">Email</label>
+                            <input type="email" id="email" name="email" required value="<?= $contact_form_email_value ?>" class="form-input <?= get_field_error_class('contact_form', 'email') ?>" placeholder="you@example.com" <?= get_aria_describedby('contact_form', 'email') ?>>
+                            <?= get_field_error_html('contact_form', 'email') ?>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="message" class="form-label required">Message</label>
+                            <textarea id="message" name="message" rows="4" required class="form-textarea <?= get_field_error_class('contact_form', 'message') ?>" placeholder="Your message..." <?= get_aria_describedby('contact_form', 'message') ?>><?= $contact_form_message_value ?></textarea>
+                            <?= get_field_error_html('contact_form', 'message') ?>
+                        </div>
+
+                        <div class="form-button-container">
+                            <button type="submit" class="btn btn-secondary">
+                                <i class="fas fa-paper-plane"></i><span>Send Message</span>
+                            </button>
+                        </div>
                     </form>
-                 </div>
+                </div>
             </div>
         </div>
     </section>
-
-    <!-- Donation Modal -->
-     <div id="bank-details-modal" class="modal-container" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      <div class="modal-box">
-         <button type="button" class="close-button" aria-label="Close modal" data-modal-close="bank-details-modal"><i class="fas fa-times fa-lg"></i></button>
-         <h3 id="modal-title">Bank Transfer Details</h3>
-        <p>Use the following details for direct bank transfers. Mention "Donation" in the description.</p>
-         <div class="modal-content-box">
-            <p><strong>Account Name:</strong> PAHAL (Regd.)</p>
-            <p><strong>Account Number:</strong> [YOUR_BANK_ACCOUNT_NUMBER]</p> <!-- REPLACE -->
-             <p><strong>Bank Name:</strong> [YOUR_BANK_NAME]</p> <!-- REPLACE -->
-             <p><strong>Branch:</strong> [YOUR_BANK_BRANCH]</p> <!-- REPLACE -->
-             <p><strong>IFSC Code:</strong> [YOUR_IFSC_CODE]</p> <!-- REPLACE -->
-        </div>
-        <p class="modal-footer-note">For queries or receipts, contact us. Thank you!</p>
-      </div>
-    </div>
 
 </main>
 
 <!-- Footer -->
-<footer class="bg-slate-900 dark:bg-black text-gray-400 pt-16 pb-8 mt-0 border-t-4 border-theme-primary dark:border-theme-primary">
-    <div class="container mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12 text-center md:text-left">
-            <!-- Footer About -->
-            <div>
+<footer>
+    <div class="container">
+        <div class="footer-grid">
+            <!-- Column 1: About -->
+            <div class="footer-col">
                 <h4 class="footer-heading">About PAHAL</h4>
-                <a href="#hero" class="inline-block mb-3"><img src="icon.webp" alt="PAHAL Icon" class="w-14 h-14 rounded-full bg-white p-1 shadow-md mx-auto md:mx-0"></a>
-                <p class="footer-text">Jalandhar NGO fostering holistic growth & community service.</p>
-                <p class="text-xs text-gray-500">Reg No: 737 | 80G & 12A</p>
-                 <div class="mt-4 flex justify-center md:justify-start space-x-4">
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram" class="footer-social-icon hover:text-[#E1306C]"><i class="fab fa-instagram"></i></a>
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook" class="footer-social-icon hover:text-[#1877F2]"><i class="fab fa-facebook-f"></i></a>
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="Twitter" title="Twitter" class="footer-social-icon hover:text-[#1DA1F2]"><i class="fab fa-twitter"></i></a>
-                     <a href="..." target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn" class="footer-social-icon hover:text-[#0A66C2]"><i class="fab fa-linkedin-in"></i></a>
-                 </div>
+                <p>A volunteer-driven youth NGO in Jalandhar, committed to community development and positive social change.</p>
+                <!-- Social Icons Placeholder -->
+                 <!-- <div class="footer-social-icons">
+                    <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                </div> -->
             </div>
-             <!-- Footer Quick Links -->
-             <div>
-                 <h4 class="footer-heading">Explore</h4>
-                 <ul class="footer-links space-y-1.5 text-sm columns-2 md:columns-1">
-                     <li><a href="#profile"><i class="fas fa-chevron-right"></i>Profile</a></li>
-                     <li><a href="#objectives"><i class="fas fa-chevron-right"></i>Objectives</a></li>
-                     <li><a href="#areas-focus"><i class="fas fa-chevron-right"></i>Focus Areas</a></li>
-                     <li><a href="#news-section"><i class="fas fa-chevron-right"></i>News</a></li>
-                     <li><a href="blood-donation.php"><i class="fas fa-chevron-right"></i>Blood Drive</a></li>
-                     <li><a href="e-waste.php"><i class="fas fa-chevron-right"></i>E-Waste</a></li>
-                     <li><a href="#volunteer-section"><i class="fas fa-chevron-right"></i>Volunteer</a></li>
-                     <li><a href="#donate-section"><i class="fas fa-chevron-right"></i>Donate</a></li>
-                     <li><a href="#contact"><i class="fas fa-chevron-right"></i>Contact</a></li>
-                     <li><a href="/privacy-policy.php"><i class="fas fa-chevron-right"></i>Privacy</a></li>
-                 </ul>
-             </div>
-             <!-- Footer Contact -->
-             <div>
-                 <h4 class="footer-heading">Reach Us</h4>
-                 <address>
-                     <p><i class="fas fa-map-marker-alt"></i> 36 New Vivekanand Park, Maqsudan, Jalandhar, Punjab - 144008</p>
-                     <p><i class="fas fa-phone-alt"></i> <a href="tel:+911812672784">181-267-2784</a></p>
-                     <p><i class="fas fa-mobile-alt"></i> <a href="tel:+919855614230">98556-14230</a></p>
-                     <p><i class="fas fa-envelope"></i> <a href="mailto:engage@pahal-ngo.org" class="break-all">engage@pahal-ngo.org</a></p>
-                 </address>
-             </div>
-             <!-- Footer Inspiration -->
-             <div>
-                  <h4 class="footer-heading">Inspiration</h4>
-                 <blockquote>"The best way to find yourself is to lose yourself in the service of others."<cite>- Mahatma Gandhi</cite></blockquote>
-             </div>
+            <!-- Column 2: Quick Links -->
+            <div class="footer-col">
+                <h4 class="footer-heading">Quick Links</h4>
+                <ul>
+                    <li><a href="#hero" class="footer-link"><i class="fas fa-home"></i> Home</a></li>
+                    <li><a href="#focus" class="footer-link"><i class="fas fa-bullseye"></i> Focus Areas</a></li>
+                    <li><a href="#volunteer" class="footer-link"><i class="fas fa-hands-helping"></i> Volunteer</a></li>
+                    <li><a href="#donate" class="footer-link"><i class="fas fa-donate"></i> Donate</a></li>
+                    <li><a href="#contact" class="footer-link"><i class="fas fa-envelope"></i> Contact</a></li>
+                </ul>
+            </div>
+            <!-- Column 3: Programs -->
+            <div class="footer-col">
+                <h4 class="footer-heading">Our Programs</h4>
+                 <ul>
+                    <li><a href="blood-donation.php" class="footer-link"><i class="fas fa-tint"></i> Blood Donation</a></li>
+                    <li><a href="e-waste.php" class="footer-link"><i class="fas fa-recycle"></i> E-Waste Recycling</a></li>
+                    <li><a href="#focus" class="footer-link"><i class="fas fa-graduation-cap"></i> Education & Skills</a></li>
+                    <li><a href="#focus" class="footer-link"><i class="fas fa-leaf"></i> Environment</a></li>
+                </ul>
+            </div>
+            <!-- Column 4: Contact Info -->
+            <div class="footer-col">
+                <h4 class="footer-heading">Contact Info</h4>
+                <address>
+                    <p><i class="fas fa-map-marker-alt"></i> 36 New Vivekanand Park, Maqsudan, Jalandhar, Punjab 144008</p>
+                    <p><i class="fas fa-phone-alt"></i> <a href="tel:+916239366376" class="footer-link">+91 6239366376</a></p>
+                    <p><i class="fas fa-envelope"></i> <a href="mailto:<?= RECIPIENT_EMAIL_CONTACT ?>" class="footer-link"><?= RECIPIENT_EMAIL_CONTACT ?></a></p>
+                </address>
+            </div>
         </div>
-        <!-- Footer Bottom -->
-        <div class="footer-bottom"><p>© <?= $current_year ?> PAHAL (Regd.), Jalandhar. All Rights Reserved.</p></div>
+        <div class="footer-bottom">
+            © <?= $current_year ?> PAHAL NGO. All Rights Reserved.
+        </div>
     </div>
 </footer>
 
 <!-- Back to Top Button -->
-<button id="back-to-top" aria-label="Back to Top" title="Back to Top" class="back-to-top-button">
-   <i class="fas fa-arrow-up text-lg"></i> <!-- Slightly larger icon -->
+<button id="back-to-top" aria-label="Back to Top" title="Back to Top">
+    <i class="fas fa-arrow-up"></i>
 </button>
 
-<!-- Simple Lightbox JS -->
-<script src="https://cdn.jsdelivr.net/npm/simplelightbox@2.14.2/dist/simple-lightbox.min.js"></script>
+<!-- Donate Modal -->
+<div id="bank-details-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+        <button class="close-button" aria-label="Close Modal"><i class="fas fa-times"></i></button>
+        <h3 id="modal-title">Bank Details for Donation</h3>
+        <p>You can donate directly using the details below. Thank you!</p>
+        <div class="modal-content-box">
+            <p><strong>Account Name:</strong> PAHAL</p>
+            <p><strong>Account Number:</strong> 14640100001433</p>
+            <p><strong>Bank Name:</strong> Bank of Baroda</p>
+            <p><strong>Branch:</strong> Maqsudan, Jalandhar</p>
+            <p><strong>IFSC Code:</strong> BARB0MAQSUDA <span style="font-size: 0.8em; opacity: 0.8;">(5th char is Zero)</span></p>
+        </div>
+        <p class="modal-footer-note">Please mention "Donation" in the transaction description if possible.</p>
+    </div>
+</div>
 
-<!-- Main JavaScript -->
+<!-- Main JavaScript (Mostly unchanged, uses IDs) -->
 <script>
-    // --- Keep the existing JS from the previous enhancement ---
-    // This includes: Theme Toggle, Mobile Menu, Active Link Highlighting,
-    // Smooth Scroll, Back to Top, Form Submission Spinner (basic),
-    // Gallery Lightbox Init, Animation on Scroll (Intersection Observer), Modal Handling.
-    // No major changes needed here unless specific new interactions were added.
-    document.addEventListener('DOMContentLoaded', () => {
-        // Elements
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const darkIcon = document.getElementById('theme-toggle-dark-icon');
-        const lightIcon = document.getElementById('theme-toggle-light-icon');
-        const htmlElement = document.documentElement;
-        const menuToggle = document.getElementById('mobile-menu-toggle');
-        const navbar = document.getElementById('navbar');
-        const navLinks = document.querySelectorAll('#navbar a.nav-link[href^="#"]');
-        const header = document.getElementById('main-header');
-        const backToTopButton = document.getElementById('back-to-top');
-        const sections = document.querySelectorAll('main section[id]');
-        let headerHeight = header?.offsetHeight ?? 70;
+ document.addEventListener('DOMContentLoaded', () => {
+    // console.log("PAHAL Simple CSS JS Loaded");
 
-        // --- Theme Toggle ---
-        const applyTheme = (theme) => { /* ... keep existing ... */ };
-        const storedTheme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const initialTheme = storedTheme ? storedTheme : (prefersDark ? 'dark' : 'light');
-        applyTheme(initialTheme);
-        themeToggleBtn?.addEventListener('click', () => { applyTheme(htmlElement.classList.contains('dark') ? 'light' : 'dark'); });
+    const htmlElement = document.documentElement;
+    const header = document.getElementById('main-header');
+    const menuToggleBtn = document.getElementById('menu-toggle-btn');
+    const navbar = document.getElementById('navbar');
+    const navLinks = navbar ? navbar.querySelectorAll('.nav-link[href^="#"]') : [];
+    const sections = document.querySelectorAll('main section[id]'); // Target sections within main
+    const backToTopButton = document.getElementById('back-to-top');
+    const donateButton = document.getElementById('donate-button');
+    const modal = document.getElementById('bank-details-modal');
+    const closeModalButton = modal ? modal.querySelector('.close-button') : null;
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    const darkModeIcon = document.getElementById('dark-mode-icon');
+    const animatedElements = document.querySelectorAll('.animate-on-scroll');
 
-        // --- Header & Layout ---
-        let scrollTimeout;
-        const updateLayout = () => { /* ... keep existing ... */ };
-        updateLayout(); window.addEventListener('resize', updateLayout); window.addEventListener('scroll', () => { clearTimeout(scrollTimeout); scrollTimeout = setTimeout(updateLayout, 50); }, { passive: true });
+    // --- Dark Mode ---
+    const applyTheme = (theme) => {
+        if (theme === 'dark') {
+            htmlElement.classList.add('dark');
+            if (darkModeIcon) darkModeIcon.classList.replace('fa-moon', 'fa-sun');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            htmlElement.classList.remove('dark');
+            if (darkModeIcon) darkModeIcon.classList.replace('fa-sun', 'fa-moon');
+            localStorage.setItem('theme', 'light');
+        }
+    };
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    applyTheme(savedTheme ? savedTheme : (prefersDark ? 'dark' : 'light'));
 
-        // --- Mobile Menu ---
-        let isMobileMenuOpen = false;
-        const toggleMobileMenu = (forceClose = false) => { /* ... keep existing ... */ };
-        menuToggle?.addEventListener('click', () => toggleMobileMenu());
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', () => {
+            applyTheme(htmlElement.classList.contains('dark') ? 'light' : 'dark');
+        });
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+        if (!localStorage.getItem('theme')) { applyTheme(event.matches ? 'dark' : 'light'); }
+    });
 
-        // --- Active Link ---
-        const setActiveLink = () => { /* ... keep existing ... */ };
-        let activeLinkTimeout; window.addEventListener('scroll', () => { clearTimeout(activeLinkTimeout); activeLinkTimeout = setTimeout(setActiveLink, 100); }, { passive: true }); setActiveLink();
+    // --- Header Scroll Effect ---
+    if (header) {
+        const scrollThreshold = 50;
+        const updateHeader = () => {
+            header.classList.toggle('scrolled', window.scrollY > scrollThreshold);
+        };
+        window.addEventListener('scroll', updateHeader, { passive: true });
+        updateHeader();
+    }
 
-        // --- Smooth Scroll & Menu Close ---
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => { anchor.addEventListener('click', function (e) { /* ... keep existing ... */ }); });
+    // --- Mobile Menu Toggle ---
+    if (menuToggleBtn && navbar) {
+        menuToggleBtn.addEventListener('click', () => {
+            const isOpen = menuToggleBtn.getAttribute('aria-expanded') === 'true';
+            menuToggleBtn.setAttribute('aria-expanded', !isOpen);
+            menuToggleBtn.classList.toggle('open');
+            navbar.classList.toggle('open'); // You'll need CSS for .navbar.open
+            // document.body.style.overflow = navbar.classList.contains('open') ? 'hidden' : '';
+        });
+        navbar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                if (navbar.classList.contains('open')) { menuToggleBtn.click(); }
+            });
+        });
+    }
 
-        // --- Back to Top ---
-        backToTopButton?.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    // --- Active Nav Link Highlighting ---
+     function changeActiveLink() {
+        if (!navLinks.length || !sections.length) return;
+        let currentSectionId = 'hero'; // Default to hero
+        const headerHeight = header?.offsetHeight || 70;
+        const scrollPosition = window.scrollY + headerHeight + 50;
 
-        // --- Form Submission & Messages ---
-        document.querySelectorAll('form[id$="-form-tag"]').forEach(form => {
-             const submitButton = form.querySelector('button[type="submit"]');
-             const spinner = submitButton?.querySelector('.spinner');
-             const buttonTextSpan = submitButton?.querySelector('.button-text');
-             form.addEventListener('submit', (e) => {
-                 if (submitButton) { submitButton.disabled = true; buttonTextSpan?.classList.add('opacity-70'); spinner?.classList.remove('hidden'); }
-             });
-             const formId = form.id.replace('-tag', '');
-             const statusMessage = document.querySelector(`[data-form-message-id="${formId}"]`);
-             if(statusMessage) { setTimeout(() => { statusMessage.style.opacity = '1'; statusMessage.style.transform = 'translateY(0) scale(1)'; }, 50); }
+        sections.forEach(section => {
+            if (scrollPosition >= section.offsetTop) { currentSectionId = section.id; }
         });
 
-        // --- Gallery Lightbox ---
-        try { if (typeof SimpleLightbox !== 'undefined') { new SimpleLightbox('.gallery a', { captionDelay: 250, fadeSpeed: 200, animationSpeed: 200 }); } } catch(e) { console.error("Lightbox init failed:", e); }
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === `#${currentSectionId}`) {
+                link.classList.add('active');
+            }
+        });
+        // Ensure 'Home' is active if nothing else matches
+        if (!navbar.querySelector('.nav-link.active')) {
+            const homeLink = navbar.querySelector('.nav-link[href="#hero"]');
+            if(homeLink) homeLink.classList.add('active');
+        }
+    }
+    if (navLinks.length > 0 && sections.length > 0) {
+        window.addEventListener('scroll', changeActiveLink, { passive: true });
+        changeActiveLink();
+    }
 
-        // --- Animation on Scroll ---
-        const observerOptions = { root: null, rootMargin: '0px 0px -10% 0px', threshold: 0.1 };
-        const intersectionCallback = (entries, observer) => { /* ... keep existing ... */ };
-        if ('IntersectionObserver' in window) { const observer = new IntersectionObserver(intersectionCallback, observerOptions); document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el)); }
-        else { document.querySelectorAll('.animate-on-scroll').forEach(el => el.classList.add('is-visible')); }
+    // --- Form Message Animation Trigger (CSS handles animation) ---
+    // const formMessages = document.querySelectorAll('[data-form-message-id]'); // Already handled by CSS animation delay
 
-        // --- Modal Handling ---
-        const modalTriggers = document.querySelectorAll('[data-modal-target]');
-        const modalClosers = document.querySelectorAll('[data-modal-close]');
-        const modals = document.querySelectorAll('.modal-container');
-        const closeModal = (modal) => { /* ... keep existing ... */ };
-        modalTriggers.forEach(button => { button.addEventListener('click', () => { /* ... keep existing ... */ }); });
-        modalClosers.forEach(button => { button.addEventListener('click', () => { /* ... keep existing ... */ }); });
-        modals.forEach(modal => { modal.addEventListener('click', (event) => { /* ... keep existing ... */ }); });
-        document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { document.querySelectorAll('.modal-container.flex').forEach(closeModal); } });
+    // --- Back to Top Button ---
+    if (backToTopButton) {
+        const scrollThreshold = 300;
+        const updateButtonVisibility = () => {
+            backToTopButton.classList.toggle('visible', window.scrollY > scrollThreshold);
+        };
+        window.addEventListener('scroll', updateButtonVisibility, { passive: true });
+        updateButtonVisibility();
+        backToTopButton.addEventListener('click', (e) => {
+            e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
 
-        console.log("PAHAL Advanced UI Initialized.");
-    });
+    // --- Donate Modal ---
+    if (donateButton && modal && closeModalButton) {
+        let previouslyFocusedElement = null;
+        const openModal = () => {
+            previouslyFocusedElement = document.activeElement;
+            modal.classList.add('visible'); // Use 'visible' class
+            if (closeModalButton) closeModalButton.focus();
+        };
+        const closeModal = () => {
+            modal.classList.remove('visible');
+            if (previouslyFocusedElement) previouslyFocusedElement.focus();
+            else if (donateButton) donateButton.focus();
+        };
+        donateButton.addEventListener('click', openModal);
+        closeModalButton.addEventListener('click', closeModal);
+        modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+        document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modal.classList.contains('visible')) closeModal(); });
+    }
+
+    // --- Animation on Scroll ---
+    if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible'); // CSS handles the animation
+                    obs.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+        animatedElements.forEach(el => observer.observe(el));
+    } else {
+        animatedElements.forEach(el => el.classList.add('is-visible')); // Fallback
+    }
+
+     // --- Handle Form Submission Indicator ---
+     const handleFormSubmit = (formElement) => {
+         if (!formElement) return;
+         formElement.addEventListener('submit', (e) => {
+             if (typeof formElement.checkValidity === 'function' && !formElement.checkValidity()) { return; }
+             const submitButton = formElement.querySelector('button[type="submit"]');
+             if (submitButton) {
+                 submitButton.disabled = true;
+                 const buttonTextSpan = submitButton.querySelector('span'); // Target the span containing text
+                 const originalIcon = submitButton.querySelector('i');
+                 const spinner = submitButton.querySelector('.spinner');
+
+                 if (!spinner) { // Add spinner dynamically if needed
+                    const newSpinner = document.createElement('span');
+                    newSpinner.className = 'spinner';
+                    newSpinner.style.marginRight = '0.5em'; // Add spacing
+                    submitButton.prepend(newSpinner);
+                 }
+                 if(originalIcon) originalIcon.style.display = 'none';
+                 if (buttonTextSpan) buttonTextSpan.textContent = 'Submitting...';
+                 // If no span, might need more complex logic to find the text node
+             }
+         });
+     };
+     handleFormSubmit(document.getElementById('volunteer_form_element'));
+     handleFormSubmit(document.getElementById('contact_form_element'));
+
+ });
 </script>
 
 </body>
