@@ -236,6 +236,8 @@ $news_items = [ /* ... */ ]; $gallery_images = [ /* ... */ ]; $associates = [ /*
     <link rel="manifest" href="/site.webmanifest">
 
     <!-- Tailwind CSS CDN with Forms Plugin -->
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     
     <!-- Fix for Tailwind CSS processing -->
